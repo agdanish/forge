@@ -115,7 +115,7 @@ export function isRegistered(): boolean {
  * Check if the agent is verified
  */
 export function isVerified(): boolean {
-  return configStore.get("isVerified") === true;
+  return configStore.get("isVerified") === true || process.env.SEEDSTR_VERIFIED === "true";
 }
 
 /**
