@@ -6,12 +6,19 @@ import { getLLMClient } from "../llm/client.js";
 import { getConfig, configStore } from "../config/index.js";
 import { logger } from "../utils/logger.js";
 import { cleanupProject } from "../tools/projectBuilder.js";
+import { validateZip } from "../validation/zipValidator.js";
+import { getScaffoldHint } from "../templates/index.js";
 import type { Job, AgentEvent, TokenUsage, FileAttachment, WebSocketJobEvent } from "../types/index.js";
 
 // Approximate costs per 1M tokens for common models (input/output)
 const MODEL_COSTS: Record<string, { input: number; output: number }> = {
-  "anthropic/claude-sonnet-4": { input: 3.0, output: 15.0 },
+  "anthropic/claude-opus-4.6": { input: 15.0, output: 75.0 },
+  "anthropic/claude-opus-4.5": { input: 15.0, output: 75.0 },
+  "anthropic/claude-opus-4.1": { input: 15.0, output: 75.0 },
   "anthropic/claude-opus-4": { input: 15.0, output: 75.0 },
+  "anthropic/claude-sonnet-4.6": { input: 3.0, output: 15.0 },
+  "anthropic/claude-sonnet-4.5": { input: 3.0, output: 15.0 },
+  "anthropic/claude-sonnet-4": { input: 3.0, output: 15.0 },
   "anthropic/claude-3.5-sonnet": { input: 3.0, output: 15.0 },
   "anthropic/claude-3-opus": { input: 15.0, output: 75.0 },
   "openai/gpt-4-turbo": { input: 10.0, output: 30.0 },
@@ -437,21 +444,114 @@ export class AgentRunner extends EventEmitter implements TypedEventEmitter {
 
       const result = await llm.generate({
         prompt: job.prompt,
-        systemPrompt: `You are an AI agent participating in the Seedstr marketplace. Your task is to provide the best possible response to job requests.
+        systemPrompt: `You are a top-tier AI agent competing in a high-stakes hackathon. Your goal is to produce the absolute best possible response and maximize your score on: Functionality, Design, and Speed.
 
-Guidelines:
-- Be helpful, accurate, and thorough
-- Use tools when needed to get current information
-- Provide well-structured, clear responses
-- Be professional and concise
-- If you use web search, cite your sources
+## DECISION: TEXT vs PROJECT
 
-Responding to jobs:
-- Most jobs are asking for TEXT responses — writing, answers, advice, ideas, analysis, tweets, emails, etc. For these, just respond directly with well-written text. Do NOT create files for text-based requests.
-- Only use create_file and finalize_project when the job is genuinely asking for a deliverable code project (a website, app, script, tool, etc.) that the requester would need to download and run/open.
-- Use your judgment to determine what the requester actually wants. "Write me a tweet" = text response. "Build me a landing page" = file project.
+Use create_file + finalize_project when the job asks for any of:
+- An app, website, tool, dashboard, platform, system, product, SaaS, utility
+- Anything a user would "run", "open", "deploy", or "use"
+- Code that needs to be downloaded and executed
 
-Job Budget: $${effectiveBudget.toFixed(2)} USD${job.jobType === "SWARM" ? ` (your share of $${job.budget.toFixed(2)} total across ${job.maxAgents} agents)` : ""}`,
+Respond with TEXT ONLY for:
+- Writing tasks (emails, tweets, essays, summaries)
+- Research and analysis questions
+- Simple factual answers
+
+When in doubt and the budget is significant ($1+), build a project. The requester paid for a deliverable.
+
+## STACK (always use this unless explicitly told otherwise)
+
+React 18 + TypeScript + Vite + Tailwind CSS + lucide-react
+
+## PROJECT REQUIREMENTS (non-negotiable)
+
+1. EVERY feature visible in the UI must be implemented and functional. No dead buttons, no empty click handlers.
+2. Include a README.md with these exact sections:
+   - # [App Name]
+   - ## Overview (1-2 sentences)
+   - ## Features (bulleted list)
+   - ## Setup: \`npm install && npm run dev\`
+   - ## Tech Stack
+3. package.json must have ALL dependencies that the code imports. Do not reference packages not in dependencies.
+4. ZERO placeholder text: no "TODO", no "PLACEHOLDER", no "Lorem ipsum", no "YOUR_TEXT_HERE", no "coming soon" stubs.
+5. All data/content must be realistic and meaningful — use real-looking sample data.
+6. Handle empty states, loading states, and basic error conditions.
+
+## FILE STRUCTURE
+
+\`\`\`
+package.json
+vite.config.ts
+tailwind.config.js
+postcss.config.js
+tsconfig.json
+index.html
+README.md
+src/
+  main.tsx
+  App.tsx
+  index.css
+  types.ts
+  components/
+    [ComponentName].tsx  (one component per file)
+\`\`\`
+
+## PACKAGE.JSON TEMPLATE
+
+\`\`\`json
+{
+  "name": "app-name",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "lucide-react": "^0.460.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.47",
+    "tailwindcss": "^3.4.15",
+    "typescript": "^5.6.2",
+    "vite": "^6.0.1"
+  }
+}
+\`\`\`
+
+## TAILWIND CONFIG
+
+\`\`\`js
+/** @type {import('tailwindcss').Config} */
+export default {
+  content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
+  theme: { extend: {} },
+  plugins: [],
+}
+\`\`\`
+
+## RESPONSE TEXT
+
+After creating the project, your text response (not the file) should follow this format:
+\`\`\`
+[App Name] — [One-line description].
+
+Features: [Feature 1], [Feature 2], [Feature 3].
+Stack: React 18 + TypeScript + Tailwind CSS + Vite.
+Setup: npm install && npm run dev
+\`\`\`
+
+Job Budget: $${effectiveBudget.toFixed(2)} USD${job.jobType === "SWARM" ? ` (your share of $${job.budget.toFixed(2)} total across ${job.maxAgents} agents)` : ""}
+${getScaffoldHint(job.prompt)}`,
         tools: true,
       });
 
@@ -494,6 +594,22 @@ Job Budget: $${effectiveBudget.toFixed(2)} USD${job.jobType === "SWARM" ? ` (you
           files: projectBuild.files,
           zipPath: projectBuild.zipPath,
         });
+
+        // Validate the ZIP before uploading
+        const validation = await validateZip(projectBuild.zipPath, projectBuild.files);
+        if (!validation.valid) {
+          logger.warn(`ZIP validation failed for job ${job.id}: ${validation.errors.join("; ")}. Falling back to text response.`);
+          // Fall through to text-only submission
+          let submitResult;
+          if (useV2Submit) {
+            submitResult = await this.client.submitResponseV2(job.id, result.text || "Project generation encountered validation issues. Please see attached description.");
+          } else {
+            submitResult = await this.client.submitResponse(job.id, result.text || "Project generation encountered validation issues.");
+          }
+          this.emitEvent({ type: "response_submitted", job, responseId: submitResult.response.id, hasFiles: false });
+          cleanupProject(projectBuild.projectDir, projectBuild.zipPath);
+          return;
+        }
 
         try {
           // Upload the zip file
