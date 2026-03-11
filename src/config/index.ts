@@ -108,7 +108,7 @@ export function validateConfig(config: AgentConfig): string[] {
  * Check if the agent is registered
  */
 export function isRegistered(): boolean {
-  return !!configStore.get("seedstrApiKey");
+  return !!(configStore.get("seedstrApiKey") || process.env.SEEDSTR_API_KEY);
 }
 
 /**
