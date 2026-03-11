@@ -106,7 +106,7 @@ import { Search, Plus, Trash2, Edit, ChevronRight, BarChart2, Users, Settings, B
 Icons in buttons: <Button><Plus className="w-4 h-4" /> Add Item</Button>
 Icons as decorators: <BarChart2 className="w-8 h-8 text-indigo-400" />
 
-## REQUIRED FILES (EVERY project must have all of these)
+## REQUIRED FILES — TARGET 10-14 FILES TOTAL (judges score Speed!)
 
 \`\`\`
 package.json          ← correct dependencies
@@ -118,11 +118,16 @@ index.html            ← Vite entry point
 README.md             ← setup instructions
 src/
   main.tsx            ← React entry + StrictMode
-  App.tsx             ← root component
+  App.tsx             ← root component + state management
   index.css           ← @tailwind base/components/utilities
   types.ts            ← TypeScript interfaces
-  components/         ← one component per file
+  components/         ← MAX 4-5 component files, group related UI together
 \`\`\`
+
+⚡ SPEED RULE: Aim for exactly 12 files total. Group related components into one file.
+Example: Put Header + Sidebar in one file. Put Modal + Form in one file.
+DO NOT create a separate file for every small component — combine them smartly.
+Rich logic goes in App.tsx or 1-2 hook files in src/hooks/.
 
 ## EXACT PACKAGE.JSON (copy this exactly, add extra deps as needed)
 
