@@ -406,7 +406,7 @@ export class LLMClient {
         maxTokens,
         temperature,
         tools: hasTools ? tools : undefined,
-        maxSteps: hasTools ? 10 : 1, // Allow up to 10 tool call steps
+        maxSteps: hasTools ? 40 : 1, // Allow up to 40 tool call steps (complex React apps need 20+)
         onStepFinish: (step) => {
           // Debug logging for each step
           logger.debug(`Step finished - finishReason: ${step.finishReason}, hasText: ${!!step.text}, toolCalls: ${step.toolCalls?.length || 0}`);
