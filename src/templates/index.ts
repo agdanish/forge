@@ -1,6 +1,7 @@
 /**
  * Scaffold hints injected into the system prompt based on job keywords.
  * These guide the LLM toward the best app structure for common prompt types.
+ * 14 archetypes covering ~95% of possible mystery prompts.
  */
 
 interface ScaffoldHint {
@@ -12,79 +13,245 @@ interface ScaffoldHint {
 const SCAFFOLDS: ScaffoldHint[] = [
   {
     name: "saas-dashboard",
-    keywords: ["dashboard", "analytics", "metrics", "admin", "saas", "crm", "management", "panel"],
-    hint: `This looks like a dashboard app. Suggested structure:
-- Sidebar with navigation links (using lucide-react icons)
-- Top header with user info / breadcrumb
-- Main content area with stat cards (4 KPI cards at top)
-- Data table or chart below stat cards
-- Use Tailwind: bg-gray-900 or bg-white theme, card shadows`,
-  },
-  {
-    name: "crud-tool",
-    keywords: ["crud", "list", "create", "edit", "delete", "manage", "form", "task", "todo", "note", "item"],
-    hint: `This looks like a CRUD tool. Suggested structure:
-- Header with app name + "Add New" button
-- List/table of items with edit/delete actions
-- Modal dialog for create/edit form
-- Confirmation dialog for delete
-- Empty state when no items exist
-- Toast notifications for success/error feedback`,
-  },
-  {
-    name: "ai-chat",
-    keywords: ["chat", "conversation", "message", "assistant", "bot", "ai", "gpt", "llm"],
-    hint: `This looks like a chat/conversation app. Suggested structure:
-- Chat thread area (scrollable, messages left/right aligned)
-- User messages on right (blue bg), AI messages on left (gray bg)
-- Input bar at bottom with send button
-- Typing indicator (animated dots)
-- Timestamp on messages
-- Clear/new conversation button`,
+    keywords: ["dashboard", "admin", "saas", "crm", "management", "panel", "monitor", "overview", "control"],
+    hint: `ARCHETYPE: SaaS Dashboard — sidebar nav + metric cards + data table.
+STRUCTURE (10 files, App.tsx holds all state):
+- Collapsible sidebar with nav links + lucide icons + active state highlight
+- Top header: breadcrumb + notification bell + user avatar dropdown
+- 4 KPI stat cards: icon + big number + trend arrow (↑12%) + label
+- Data table with sortable columns + search filter + status badges
+- Quick-action modal (add/edit record)
+MUST HAVE: Real data (10+ rows), working search, tab switching between sections.
+DESIGN: Gradient header "from-indigo-600 to-purple-600", card hover lift effect.`,
   },
   {
     name: "analytics",
-    keywords: ["analytics", "chart", "graph", "report", "data", "visualization", "insight", "statistic"],
-    hint: `This looks like an analytics/data visualization app. Suggested structure:
-- Top bar with date range filter and export button
-- 4 KPI summary cards (trend arrow + percentage change)
-- Chart area (use CSS/SVG for simple bar/line chart, or just styled divs)
-- Data breakdown table below
-- Color-coded status indicators`,
+    keywords: ["analytics", "chart", "graph", "report", "data", "visualization", "insight", "statistic", "metric", "bi"],
+    hint: `ARCHETYPE: Analytics/Data Visualization — charts + KPIs + filters.
+STRUCTURE (10 files, all in App.tsx + optional components.tsx):
+- Date range selector (Last 7d / 30d / 90d / Custom) that re-renders data
+- 4 KPI summary cards with big numbers + percentage change + sparkline
+- Bar chart using pure Tailwind (divs with height as inline style %)
+- Line chart trend using SVG polyline (simple, no library)
+- Breakdown table with color-coded rows + export CSV button (generates blob)
+MUST HAVE: Toggle between chart types, real-looking numbers, working filters.
+DESIGN: Dark bg-gray-950, neon indigo/purple accent lines on charts.`,
   },
   {
-    name: "productivity",
-    keywords: ["productivity", "workflow", "project", "team", "kanban", "board", "tracker", "schedule", "calendar"],
-    hint: `This looks like a productivity/workflow app. Suggested structure:
-- Column-based layout (e.g., Todo / In Progress / Done for kanban)
-- Card items with title, description, priority badge
-- Add item button in each column
-- Drag-and-drop hint (visual affordance even if not implemented)
-- Filter/search bar at top`,
+    name: "crud-tool",
+    keywords: ["crud", "manage", "form", "task", "todo", "note", "item", "list", "record", "entry", "tracker"],
+    hint: `ARCHETYPE: CRUD Tool — list + add/edit/delete + search/filter.
+STRUCTURE (10 files, all logic in App.tsx):
+- Header: app name + "Add New" button (opens inline form or modal)
+- Search bar + filter dropdowns (category, status, date) that work in real-time
+- Item cards/rows with title, metadata, status badge, edit + delete buttons
+- Inline edit form (expands on click, no page navigation)
+- Confirmation toast on create/edit/delete ("Saved!" green banner)
+- Empty state with icon + "No items yet" + "Create your first" CTA
+MUST HAVE: 10+ seed items, all CRUD operations mutate state, search filters live.
+DESIGN: Card list on left, detail panel on right (master-detail layout).`,
+  },
+  {
+    name: "ai-chat",
+    keywords: ["chat", "conversation", "message", "assistant", "bot", "ai", "gpt", "llm", "copilot", "agent"],
+    hint: `ARCHETYPE: AI Chat Interface — message thread + input + sidebar history.
+STRUCTURE (10 files, all in App.tsx):
+- Left sidebar: conversation history list (click to switch) + "New Chat" button
+- Main area: scrollable message thread (auto-scroll to bottom on new message)
+- User messages: right-aligned, indigo bg, rounded-tl-sm
+- AI messages: left-aligned, gray-800 bg, avatar icon, rounded-tr-sm, typing animation
+- Bottom input: textarea (Enter to send, Shift+Enter newline) + send button
+- Suggested prompts grid (4 examples shown on empty conversation)
+- Model selector dropdown in header (GPT-4o / Claude / Gemini labels)
+MUST HAVE: Mock AI responses that vary by keyword, message timestamps, token count display.
+DESIGN: ChatGPT-like split layout, streaming dots animation on "thinking".`,
+  },
+  {
+    name: "productivity-kanban",
+    keywords: ["kanban", "board", "workflow", "sprint", "agile", "scrum", "backlog", "column", "swim"],
+    hint: `ARCHETYPE: Kanban Board — drag-and-drop columns + task cards.
+STRUCTURE (10 files):
+- 3-4 columns: Todo / In Progress / Review / Done (each column scrollable)
+- Task cards: title + assignee avatar + priority badge (High/Med/Low) + due date
+- "Add Task" button per column (inline form appears at bottom of column)
+- Click card → detail side panel slides in (title, description, checklist, comments)
+- Column header shows task count badge
+- Top bar: search + filter by assignee + filter by priority
+MUST HAVE: Move tasks between columns (click card → change status dropdown), 8+ seed tasks, working add form.
+DESIGN: Each column slightly different shade, priority colors (red/yellow/green), card hover shadow lift.`,
+  },
+  {
+    name: "ecommerce",
+    keywords: ["shop", "store", "product", "cart", "buy", "sell", "marketplace", "listing", "catalog", "inventory", "ecommerce", "commerce"],
+    hint: `ARCHETYPE: E-Commerce Store — product grid + cart + checkout.
+STRUCTURE (10 files):
+- Header: logo + search bar + cart icon with badge (item count)
+- Product grid (3 cols): image placeholder (colored div) + name + price + rating stars + "Add to Cart"
+- Cart sidebar (slides in): item list + quantity controls +/- + remove + subtotal + "Checkout" button
+- Category filter tabs (All / Electronics / Fashion / Home / etc.)
+- Product detail modal on click: larger image + description + size/color selector + add to cart
+- Search that filters products by name in real-time
+MUST HAVE: 12+ products with real names/prices, cart persists in state, quantity updates total.
+DESIGN: Clean white/light mode variant OR dark premium — gradient hero banner at top.`,
+  },
+  {
+    name: "finance",
+    keywords: ["budget", "expense", "finance", "money", "invoice", "billing", "payment", "cost", "salary", "income", "spend", "accounting", "wallet", "transaction"],
+    hint: `ARCHETYPE: Finance/Budget Tracker — transactions + categories + summary.
+STRUCTURE (10 files):
+- Summary bar: Total Income (green) + Total Expenses (red) + Net Balance (blue/white)
+- Donut/pie chart (CSS clip-path or conic-gradient) showing spending by category
+- Transaction list: date + merchant + category chip + amount (green +/red -)
+- Add Transaction form: amount + category dropdown + description + date
+- Category breakdown table: category name + total + % of spending + bar indicator
+- Filter: date range + category + type (income/expense)
+MUST HAVE: 15+ seed transactions, working add form, live recalculation of totals.
+DESIGN: Green for income (text-emerald-400), Red for expenses (text-red-400), indigo accent.`,
+  },
+  {
+    name: "social-feed",
+    keywords: ["social", "community", "feed", "post", "profile", "follow", "friend", "network", "tweet", "share", "like", "comment"],
+    hint: `ARCHETYPE: Social Feed / Community — posts + interactions + profile.
+STRUCTURE (10 files):
+- Left sidebar: user profile card (avatar + name + stats: followers/following/posts) + nav links
+- Main feed: post cards with avatar + username + timestamp + content + image placeholder
+- Post interactions: Like (toggle heart, count updates) + Comment (expand thread) + Share button
+- Create Post box at top of feed (textarea + Post button)
+- Right sidebar: "Trending" tags list + "Suggested Users" list
+- Profile header if viewing profile: banner + avatar + bio + follow button
+MUST HAVE: 8+ seed posts, like toggle mutates count, comment adds to list, create post prepends to feed.
+DESIGN: Clean card layout, hover states on interactive elements, unread notification badge.`,
+  },
+  {
+    name: "health-fitness",
+    keywords: ["health", "fitness", "workout", "exercise", "nutrition", "diet", "calories", "medical", "wellness", "gym", "run", "training", "habit"],
+    hint: `ARCHETYPE: Health/Fitness Tracker — workouts + progress + streaks.
+STRUCTURE (10 files):
+- Today's summary: calories burned ring + steps progress bar + water intake tracker
+- Workout log: exercise name + sets/reps/weight + duration + intensity badge
+- Weekly calendar strip: M T W T F S S with checkmarks for completed days (streak counter)
+- Add Workout form: exercise search/select + sets/reps inputs + timer start button
+- Progress charts: weight over time (SVG line) + PR (personal record) achievements
+- Nutrition tab: macros (protein/carbs/fat) progress bars + meal log
+MUST HAVE: 7-day seed data, working add form, streak counter updates, progress visually responds.
+DESIGN: Energetic — indigo + emerald accents, circular progress rings using SVG stroke-dasharray.`,
+  },
+  {
+    name: "education",
+    keywords: ["education", "learning", "course", "quiz", "study", "flashcard", "school", "teach", "lesson", "curriculum", "student", "exam", "test"],
+    hint: `ARCHETYPE: Education/Learning Platform — courses + progress + quiz.
+STRUCTURE (10 files):
+- Course grid: thumbnail (colored gradient div) + title + instructor + progress bar + difficulty badge
+- Course detail: module list (accordion expand) + lesson items (checkmark to complete)
+- Quiz component: question + 4 answer options (radio) + Submit + next + score display
+- Progress dashboard: overall completion % + XP points + streak + achievements badges
+- Flashcard mode: card flip animation (CSS transform rotateY) + next/prev + mark known
+- Search + filter by category/difficulty/duration
+MUST HAVE: 6+ courses, quiz actually scores correctly, progress persists in state during session.
+DESIGN: Warm palette — amber/orange accents for gamification, clean readable typography.`,
+  },
+  {
+    name: "calendar-events",
+    keywords: ["calendar", "event", "schedule", "appointment", "booking", "meeting", "reminder", "planner", "agenda", "reservation"],
+    hint: `ARCHETYPE: Calendar/Event Planner — monthly grid + event management.
+STRUCTURE (10 files):
+- Monthly calendar grid (7 cols × 5-6 rows) with today highlighted
+- Events shown as colored chips on calendar cells (click to view detail)
+- Sidebar: upcoming events list (next 5) + mini month navigator
+- Add Event modal: title + date + time + category color + description + duration
+- Day view: clicking a date shows that day's events in detail panel
+- Category color coding: Work (blue) / Personal (green) / Health (red) / Social (purple)
+MUST HAVE: 10+ seed events across current month, add form creates event on calendar, navigation between months.
+DESIGN: Clean white calendar cells on dark bg, event chips with category colors.`,
+  },
+  {
+    name: "portfolio-showcase",
+    keywords: ["portfolio", "showcase", "gallery", "resume", "cv", "work", "personal", "profile", "website", "landing", "agency"],
+    hint: `ARCHETYPE: Portfolio/Showcase — hero + projects + contact.
+STRUCTURE (10 files, single page with scroll sections):
+- Hero: large gradient heading + subtitle + CTA buttons + floating skill badges
+- About section: photo placeholder + bio text + skills grid (icons + labels)
+- Projects grid: project cards with preview image (gradient placeholder) + title + tech stack badges + Live/Code links
+- Experience timeline: vertical line + company nodes with role + dates + bullet achievements
+- Skills visualization: grouped by category with proficiency bars
+- Contact section: form (name + email + message + Send) + social links
+MUST HAVE: 4+ projects, 6+ skills, experience timeline, contact form validates + shows success state.
+DESIGN: Dramatic — full-width sections, parallax-style gradients, smooth scroll behavior.`,
+  },
+  {
+    name: "game-quiz",
+    keywords: ["game", "quiz", "trivia", "puzzle", "score", "leaderboard", "challenge", "play", "level", "word", "memory"],
+    hint: `ARCHETYPE: Game/Quiz App — gameplay + scoring + leaderboard.
+STRUCTURE (10 files):
+- Start screen: title + difficulty selector + "Start Game" button + high score display
+- Game screen: question/challenge area + answer input or multiple choice
+- Score/progress: points counter (animates on score) + timer countdown bar + lives/hearts
+- Results screen: final score + percentage + "Play Again" + share score button
+- Leaderboard: top 10 scores table with rank + name + score + date
+- Category selector (if applicable): Sports / Science / History / etc.
+MUST HAVE: 10+ questions/levels, timer actually counts down, score calculates correctly, game over on wrong answer (or lives depleted).
+DESIGN: Playful — bold colors, big typography, animation on correct answer (pulse/bounce), wrong answer shake.`,
+  },
+  {
+    name: "real-estate",
+    keywords: ["real estate", "property", "house", "apartment", "rent", "mortgage", "listing", "realty", "home", "flat"],
+    hint: `ARCHETYPE: Real Estate Listings — property grid + filters + detail.
+STRUCTURE (10 files):
+- Map placeholder (styled div with grid overlay) + listings panel side-by-side
+- Property cards: image placeholder (gradient) + price + beds/baths/sqft icons + address + status badge
+- Advanced filters: price range slider + bedrooms + property type + amenities checkboxes
+- Property detail modal: photo gallery placeholder + full description + features list + agent card + contact button
+- Favorites toggle (heart icon) + saved properties sidebar
+- Sort: Price ↑↓ / Newest / Most Popular
+MUST HAVE: 10+ seed properties with real addresses/prices, filters update grid live, favorites toggle persists in state.
+DESIGN: Clean and professional — trust-inspiring white cards, emerald accents for "For Sale", blue for "For Rent".`,
   },
 ];
 
-const DEFAULT_HINT = `Build a clean, modern single-page React app with:
-- Clear header with app name and navigation
-- Main content area with well-organized sections
-- Interactive elements that all work
-- Responsive layout (mobile + desktop)
-- Consistent color scheme using Tailwind`;
+const DEFAULT_HINT = `ARCHETYPE: Unknown/Custom — build the most complete, functional interpretation possible.
+STRATEGY for any unknown prompt:
+1. Identify the PRIMARY user action (what does the user DO in this app?)
+2. Build UI around that action — make it the center of the screen
+3. Add supporting views: list/history, settings/config, stats/summary
+4. Always include: search, add-new, and some form of data visualization
+5. Seed with 10+ realistic data items immediately (never show empty app)
+
+SAFE DEFAULT STRUCTURE (10 files):
+- Header: app name (gradient text) + primary CTA button + search
+- Main area: card grid OR list view (toggle between them)
+- Side panel: detail view OR stats summary
+- Add/Edit modal with proper form validation
+- Empty state + loading skeleton (animate-pulse)
+
+DESIGN FALLBACK: Dark premium theme (bg-gray-950), indigo buttons, gray-900 cards.
+When uncertain what to build — build a MANAGEMENT TOOL for the subject matter.
+Example: "Build something for cats" → Cat Management app (track cats, health records, feeding schedule).`;
 
 /**
  * Get the most relevant scaffold hint for a given job prompt.
  * Returns a hint string to inject into the system prompt.
+ * Uses keyword scoring to find best match across 14 archetypes.
  */
 export function getScaffoldHint(prompt: string): string {
   const lower = prompt.toLowerCase();
 
+  // Score each scaffold by keyword matches (more matches = better fit)
+  let bestMatch: ScaffoldHint | null = null;
+  let bestScore = 0;
+
   for (const scaffold of SCAFFOLDS) {
-    if (scaffold.keywords.some(kw => lower.includes(kw))) {
-      return `\n## SCAFFOLD HINT (${scaffold.name})\n${scaffold.hint}\n`;
+    const score = scaffold.keywords.filter(kw => lower.includes(kw)).length;
+    if (score > bestScore) {
+      bestScore = score;
+      bestMatch = scaffold;
     }
   }
 
-  return `\n## SCAFFOLD HINT\n${DEFAULT_HINT}\n`;
+  if (bestMatch && bestScore > 0) {
+    return `\n## SCAFFOLD HINT (${bestMatch.name} — matched ${bestScore} keyword${bestScore > 1 ? 's' : ''})\n${bestMatch.hint}\n`;
+  }
+
+  return `\n## SCAFFOLD HINT (custom — no keyword match, use default strategy)\n${DEFAULT_HINT}\n`;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars

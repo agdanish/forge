@@ -106,7 +106,7 @@ import { Search, Plus, Trash2, Edit, ChevronRight, BarChart2, Users, Settings, B
 Icons in buttons: <Button><Plus className="w-4 h-4" /> Add Item</Button>
 Icons as decorators: <BarChart2 className="w-8 h-8 text-indigo-400" />
 
-## REQUIRED FILES — TARGET 10-14 FILES TOTAL (judges score Speed!)
+## REQUIRED FILES — TARGET 9-11 FILES TOTAL (judges score Speed — less files = faster = wins!)
 
 \`\`\`
 package.json          ← correct dependencies
@@ -118,16 +118,19 @@ index.html            ← Vite entry point
 README.md             ← setup instructions
 src/
   main.tsx            ← React entry + StrictMode
-  App.tsx             ← root component + state management
+  App.tsx             ← ALL logic, state, types + root component
   index.css           ← @tailwind base/components/utilities
-  types.ts            ← TypeScript interfaces
-  components/         ← MAX 4-5 component files, group related UI together
+  components.tsx      ← ALL UI components in ONE file (if needed)
 \`\`\`
 
-⚡ SPEED RULE: Aim for exactly 12 files total. Group related components into one file.
-Example: Put Header + Sidebar in one file. Put Modal + Form in one file.
-DO NOT create a separate file for every small component — combine them smartly.
-Rich logic goes in App.tsx or 1-2 hook files in src/hooks/.
+⚡ SPEED RULES (CRITICAL — speed is a scored criterion):
+1. Aim for EXACTLY 10 files total. Every extra file costs you speed score.
+2. NEVER create src/types.ts — define ALL TypeScript interfaces at the top of App.tsx.
+3. NEVER create separate files per component — put ALL components in ONE src/components.tsx.
+4. Put useState, useReducer, and all data logic directly in App.tsx.
+5. Only create src/components.tsx if you have more than 3 distinct UI sections.
+6. NEVER create hooks/ folder or separate hook files.
+7. The perfect 10-file structure: 7 config files + main.tsx + App.tsx + index.css.
 
 ## EXACT PACKAGE.JSON (copy this exactly, add extra deps as needed)
 
@@ -241,6 +244,35 @@ Before calling finalize_project, verify EACH item:
 □ Every component file is imported where it's used
 
 If you find ANY issue, fix it with another create_file call BEFORE finalizing.
+
+## PREMIUM UI POLISH (what separates winners from also-rans)
+
+### Visual hierarchy that judges notice:
+- Use gradient text on main headings: className="bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent"
+- Gradient border accent on hero cards: className="bg-gradient-to-br from-indigo-900/40 to-purple-900/40 border border-indigo-700/50"
+- Status badges with semantic color: green for success, yellow for warning, red for error, blue for info
+- Progress bars: className="h-2 bg-gray-800 rounded-full overflow-hidden" with inner div using width %
+- Numbered/icon-decorated list items for features or steps
+
+### Data richness that proves functionality:
+- Seed with 8-15 realistic sample items (real names, real numbers, real dates — NOT "Item 1", "Item 2")
+- Include variety: some items complete, some in-progress, some overdue
+- KPI cards must show real numbers with % change trend arrows (↑ 12% or ↓ 3%)
+- Charts: use pure Tailwind CSS bar charts (height % as inline style) — no chart library needed
+
+### Interactions that impress judges:
+- Search/filter that actually works (filters the rendered list in real-time)
+- Add/Edit/Delete that actually mutate state
+- Tab switching between views (e.g., List / Board / Calendar)
+- Keyboard shortcut hint in UI: "Press ⌘K to search"
+- Subtle active/selected state: className="ring-2 ring-indigo-500 bg-indigo-950/30"
+
+### NEVER do these (instant score penalty):
+- ❌ Alert() popups for anything
+- ❌ console.log() for user-visible actions
+- ❌ Disabled buttons that are always disabled
+- ❌ "Coming soon" or "Feature not available" labels
+- ❌ Placeholder Lorem Ipsum text
 
 ## SUBMISSION TEXT FORMAT
 
