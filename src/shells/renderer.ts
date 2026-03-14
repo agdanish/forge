@@ -9,6 +9,7 @@
 import { AppSpec, getSpecExtractionPrompt, parseAppSpec, generateFallbackSpec } from './spec.js';
 import { renderUniversalShell } from './universal.js';
 import { renderDashboardShell } from './dashboard.js';
+import { renderLandingShell } from './landing.js';
 import { getBoilerplateFiles } from '../templates/boilerplate.js';
 import { logger } from '../utils/logger.js';
 
@@ -16,7 +17,7 @@ export interface ShellRenderResult {
   appTsx: string;
   readmeMd: string;
   spec: AppSpec;
-  shell: 'universal' | 'dashboard';
+  shell: 'universal' | 'dashboard' | 'landing';
   files: { path: string; content: string }[];
 }
 
@@ -28,12 +29,20 @@ export function renderFromSpec(spec: AppSpec): ShellRenderResult {
   const shell = spec.shell || 'universal';
   const appTsx = shell === 'dashboard'
     ? renderDashboardShell(spec)
+    : shell === 'landing'
+    ? renderLandingShell(spec)
     : renderUniversalShell(spec);
 
   const readmeMd = generateReadme(spec);
 
   // Combine boilerplate + generated files
-  const boilerplate = getBoilerplateFiles();
+  const boilerplate = getBoilerplateFiles().map(f => {
+    // Inject app name into HTML title
+    if (f.path === 'index.html') {
+      return { ...f, content: f.content.replace('<title>App</title>', `<title>${spec.appName}</title>`) };
+    }
+    return f;
+  });
   const files = [
     ...boilerplate,
     { path: 'src/App.tsx', content: appTsx },

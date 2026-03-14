@@ -353,6 +353,24 @@ export default function App() {
           </div>
         </header>
 
+        {/* Reactive Filter Summary */}
+        {(statusFilter !== 'all' || categoryFilter !== 'all' || search) && (
+          <div className="px-6 py-3 border-b ${t.cardBorder} ${isDark ? 'bg-gray-900/50' : 'bg-gray-50'} flex items-center justify-between">
+            <div className="flex items-center gap-3 flex-wrap">
+              <span className="${t.textMuted} text-xs font-medium">Showing</span>
+              <span className="${t.accent} text-sm font-bold">{filtered.length}</span>
+              <span className="${t.textMuted} text-xs">of {items.length} ${spec.primaryEntityPlural.toLowerCase()}</span>
+              {search && <span className="text-xs px-2 py-0.5 rounded-full ${t.badge} border flex items-center gap-1">Search: "{search}" <button onClick={() => setSearch('')} className="hover:${isDark ? 'text-white' : 'text-gray-900'}"><X className="w-3 h-3" /></button></span>}
+              {statusFilter !== 'all' && <span className="text-xs px-2 py-0.5 rounded-full ${t.badge} border flex items-center gap-1 capitalize">{statusFilter} <button onClick={() => setStatusFilter('all')} className="hover:${isDark ? 'text-white' : 'text-gray-900'}"><X className="w-3 h-3" /></button></span>}
+              {categoryFilter !== 'all' && <span className="text-xs px-2 py-0.5 rounded-full ${t.badge} border flex items-center gap-1">{categoryFilter} <button onClick={() => setCategoryFilter('all')} className="hover:${isDark ? 'text-white' : 'text-gray-900'}"><X className="w-3 h-3" /></button></span>}
+            </div>
+            <div className="flex items-center gap-4">
+              <span className="${t.textSubtle} text-xs">Total: <strong className="${t.text}">{fmt(filtered.reduce((s, i) => s + i.value, 0))}</strong></span>
+              <button onClick={() => { setSearch(''); setStatusFilter('all'); setCategoryFilter('all'); }} className="${t.textMuted} text-xs hover:${isDark ? 'text-white' : 'text-gray-900'} underline">Clear all</button>
+            </div>
+          </div>
+        )}
+
         <div className="p-6">
           {(view === 'Dashboard' || VIEWS.length === 1) && <KpiSection />}
           {view === 'Board' ? <BoardView /> : <ListView />}

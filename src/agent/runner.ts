@@ -589,14 +589,93 @@ export class AgentRunner extends EventEmitter implements TypedEventEmitter {
         // Validate the shell-compiled ZIP
         const validation = await validateZip(zipPath, projectFiles);
         if (!validation.valid) {
-          logger.warn(`Shell ZIP validation failed: ${validation.errors.join('; ')}. Falling back to LLM tool-call path.`);
+          logger.warn(`Shell ZIP validation failed: ${validation.errors.join('; ')}. Trying deterministic fallback spec before LLM.`);
           usedShellCompiler = false;
+
+          // ── FALLBACK 1.5: Retry with deterministic spec (no LLM, fast) ──
+          try {
+            const { generateFallbackSpec } = await import('../shells/spec.js');
+            const { renderFromSpec } = await import('../shells/renderer.js');
+            const fallbackSpec = generateFallbackSpec(job.prompt);
+            const fallbackResult = renderFromSpec(fallbackSpec);
+            logger.info(`Deterministic fallback: ${fallbackSpec.appName} (${fallbackSpec.shell} shell)`);
+
+            // Write and ZIP the fallback
+            const tmpDir2 = path.join(process.cwd(), '.tmp-shell-fallback-' + Date.now());
+            await fs.mkdir(tmpDir2, { recursive: true });
+            for (const file of fallbackResult.files) {
+              const fp = path.join(tmpDir2, file.path);
+              await fs.mkdir(path.dirname(fp), { recursive: true });
+              await fs.writeFile(fp, file.content, 'utf-8');
+            }
+            const zipPath2 = tmpDir2 + '.zip';
+            await new Promise<void>((resolve, reject) => {
+              const output = createWriteStream(zipPath2);
+              const archive = archiver('zip', { zlib: { level: 9 } });
+              output.on('close', () => resolve());
+              archive.on('error', (err: Error) => reject(err));
+              archive.pipe(output);
+              archive.directory(tmpDir2, false);
+              archive.finalize();
+            });
+            const val2 = await validateZip(zipPath2, fallbackResult.files.map(f => f.path));
+            if (val2.valid) {
+              zipPath = zipPath2;
+              projectDir = tmpDir2;
+              projectFiles = fallbackResult.files.map(f => f.path);
+              responseText = `${fallbackSpec.appName} — ${fallbackSpec.tagline}\n\n✨ Features: ${fallbackSpec.views.join(', ')}, ${fallbackSpec.categories.slice(0, 3).join(', ')} categories\n🛠️ Stack: React 18 + TypeScript + Tailwind CSS + Vite\n🚀 Setup: npm install && npm run dev`;
+              usedShellCompiler = true;
+              logger.info('Deterministic fallback succeeded — skipping LLM tool-call path');
+            } else {
+              logger.warn('Deterministic fallback also failed validation — proceeding to LLM');
+            }
+          } catch (fbErr) {
+            logger.warn(`Deterministic fallback error: ${(fbErr as Error).message} — proceeding to LLM`);
+          }
+        }
+      } else {
+        // ── Shell compile returned null — try deterministic fallback before LLM ──
+        logger.warn('Shell compilation returned null. Trying deterministic fallback spec.');
+        try {
+          const { generateFallbackSpec } = await import('../shells/spec.js');
+          const { renderFromSpec } = await import('../shells/renderer.js');
+          const fallbackSpec = generateFallbackSpec(job.prompt);
+          const fallbackResult = renderFromSpec(fallbackSpec);
+
+          const tmpDir2 = path.join(process.cwd(), '.tmp-shell-fallback-' + Date.now());
+          await fs.mkdir(tmpDir2, { recursive: true });
+          for (const file of fallbackResult.files) {
+            const fp = path.join(tmpDir2, file.path);
+            await fs.mkdir(path.dirname(fp), { recursive: true });
+            await fs.writeFile(fp, file.content, 'utf-8');
+          }
+          const zipPath2 = tmpDir2 + '.zip';
+          await new Promise<void>((resolve, reject) => {
+            const output = createWriteStream(zipPath2);
+            const archive = archiver('zip', { zlib: { level: 9 } });
+            output.on('close', () => resolve());
+            archive.on('error', (err: Error) => reject(err));
+            archive.pipe(output);
+            archive.directory(tmpDir2, false);
+            archive.finalize();
+          });
+          const val2 = await validateZip(zipPath2, fallbackResult.files.map(f => f.path));
+          if (val2.valid) {
+            zipPath = zipPath2;
+            projectDir = tmpDir2;
+            projectFiles = fallbackResult.files.map(f => f.path);
+            responseText = `${fallbackSpec.appName} — ${fallbackSpec.tagline}\n\n✨ Features: ${fallbackSpec.views.join(', ')}, ${fallbackSpec.categories.slice(0, 3).join(', ')} categories\n🛠️ Stack: React 18 + TypeScript + Tailwind CSS + Vite\n🚀 Setup: npm install && npm run dev`;
+            usedShellCompiler = true;
+            logger.info(`Deterministic fallback succeeded: ${fallbackSpec.appName} (${fallbackSpec.shell})`);
+          }
+        } catch (fbErr) {
+          logger.warn(`Deterministic fallback error: ${(fbErr as Error).message}`);
         }
       }
 
-      // ── FALLBACK PATH: LLM Tool-Call Generation ──
+      // ── FALLBACK PATH: LLM Tool-Call Generation (only if deterministic paths all failed) ──
       if (!usedShellCompiler) {
-        logger.info('Using LLM tool-call generation (fallback path)');
+        logger.info('All deterministic paths failed — using LLM tool-call generation (slow fallback)');
         timings.genStart = Date.now() - t0;
         const result = await llm.generate({
           prompt: job.prompt,

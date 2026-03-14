@@ -66,6 +66,7 @@ export default function App() {
   const [sortAsc, setSortAsc] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [timeRange, setTimeRange] = useState('30d');
+  const [selectedRecord, setSelectedRecord] = useState<Record | null>(null);
 
   const filtered = useMemo(() => {
     let r = INITIAL_DATA.filter(item => {
@@ -135,17 +136,20 @@ export default function App() {
       </div>
       <div className="space-y-3">
         {Object.entries(categoryValues).sort(([,a],[,b]) => b - a).map(([cat, val]) => (
-          <div key={cat}>
+          <div key={cat} onClick={() => setCategoryFilter(categoryFilter === cat ? 'all' : cat)} className="cursor-pointer group">
             <div className="flex items-center justify-between mb-1">
-              <span className="${t.textMuted} text-sm">{cat}</span>
+              <span className={\`text-sm transition-colors \${categoryFilter === cat ? '${t.accent} font-semibold' : '${t.textMuted} group-hover:${t.text.replace('text-', 'text-')}'}\`}>{cat}</span>
               <span className="${t.text} text-sm font-mono">{fmt(val)}</span>
             </div>
             <div className="h-2 rounded-full ${isDark ? 'bg-gray-800' : 'bg-gray-200'} overflow-hidden">
-              <div className="h-full rounded-full bg-gradient-to-r ${t.gradient} transition-all duration-700" style={{ width: \`\${(val / maxCatValue) * 100}%\` }} />
+              <div className={\`h-full rounded-full transition-all duration-700 \${categoryFilter === cat ? 'bg-gradient-to-r ${t.gradient} shadow-lg' : categoryFilter === 'all' ? 'bg-gradient-to-r ${t.gradient}' : '${isDark ? 'bg-gray-700' : 'bg-gray-300'}'}\`} style={{ width: \`\${(val / maxCatValue) * 100}%\` }} />
             </div>
           </div>
         ))}
       </div>
+      {categoryFilter !== 'all' && (
+        <button onClick={() => setCategoryFilter('all')} className="mt-3 text-xs ${t.accent} hover:underline">Clear filter: {categoryFilter}</button>
+      )}
     </div>
   );
 
@@ -188,7 +192,7 @@ export default function App() {
       </div>
       <div className="space-y-3">
         {INITIAL_DATA.slice(0, 6).map((r, i) => (
-          <div key={i} className="flex items-start gap-3">
+          <div key={i} onClick={() => setSelectedRecord(r as any)} className="flex items-start gap-3 cursor-pointer ${isDark ? 'hover:bg-gray-800/30' : 'hover:bg-gray-50'} rounded-lg p-1 -m-1 transition-colors">
             <div className="mt-1 w-2 h-2 rounded-full ${isDark ? 'bg-indigo-400' : 'bg-blue-500'} flex-shrink-0" />
             <div className="flex-1 min-w-0">
               <p className="${t.text} text-sm font-medium truncate">{r.name}</p>
@@ -237,7 +241,7 @@ export default function App() {
           </thead>
           <tbody className="divide-y ${isDark ? 'divide-gray-800' : 'divide-gray-200'}">
             {filtered.map(r => (
-              <tr key={r.id} className="${isDark ? 'hover:bg-gray-800/50' : 'hover:bg-gray-50'} transition-colors">
+              <tr key={r.id} onClick={() => setSelectedRecord(r)} className="${isDark ? 'hover:bg-gray-800/50' : 'hover:bg-gray-50'} transition-colors cursor-pointer">
                 <td className="px-4 py-3"><div><span className="${t.text} text-sm font-medium">{r.name}</span><p className="${t.textSubtle} text-xs mt-0.5">{r.description}</p></div></td>
                 <td className="px-4 py-3"><span className={\`text-xs px-2 py-0.5 rounded-full \${STATUS_COLORS[r.status]}\`}>{r.status}</span></td>
                 <td className="px-4 py-3 ${t.textMuted} text-sm">{r.category}</td>
@@ -345,6 +349,33 @@ export default function App() {
           {tab === 'records' && <DataTable />}
         </div>
       </main>
+
+      {/* Record Detail Modal */}
+      {selectedRecord && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setSelectedRecord(null)}>
+          <div className="${t.card} ${t.cardBorder} border rounded-2xl w-full max-w-lg mx-4 shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-6 border-b ${isDark ? 'border-gray-800' : 'border-gray-200'}">
+              <h3 className="text-lg font-semibold">${spec.primaryEntity} Details</h3>
+              <button onClick={() => setSelectedRecord(null)} className="${t.textMuted} hover:${t.text.replace('text-', 'text-')} transition-colors"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div><span className="${t.textMuted} text-xs uppercase tracking-wide">Name</span><p className="${t.text} font-medium mt-1">{selectedRecord.name}</p></div>
+              <div><span className="${t.textMuted} text-xs uppercase tracking-wide">Description</span><p className="${t.textMuted} text-sm mt-1">{selectedRecord.description}</p></div>
+              <div className="grid grid-cols-2 gap-4">
+                <div><span className="${t.textMuted} text-xs uppercase tracking-wide">Status</span><p className="mt-1"><span className={\`text-xs px-2 py-0.5 rounded-full \${STATUS_COLORS[selectedRecord.status]}\`}>{selectedRecord.status}</span></p></div>
+                <div><span className="${t.textMuted} text-xs uppercase tracking-wide">Priority</span><p className="${t.text} text-sm font-medium mt-1 capitalize">{selectedRecord.priority}</p></div>
+                <div><span className="${t.textMuted} text-xs uppercase tracking-wide">Category</span><p className="${t.text} text-sm mt-1">{selectedRecord.category}</p></div>
+                <div><span className="${t.textMuted} text-xs uppercase tracking-wide">Value</span><p className="${t.text} text-sm font-mono font-semibold mt-1">{fmt(selectedRecord.value)}</p></div>
+                <div><span className="${t.textMuted} text-xs uppercase tracking-wide">Date</span><p className="${t.textMuted} text-sm mt-1">{selectedRecord.date}</p></div>
+                <div><span className="${t.textMuted} text-xs uppercase tracking-wide">Assignee</span><p className="${t.textMuted} text-sm mt-1">{selectedRecord.assignee}</p></div>
+              </div>
+            </div>
+            <div className="px-6 pb-6">
+              <button onClick={() => setSelectedRecord(null)} className="w-full ${t.primary} ${t.primaryHover} text-white py-2.5 rounded-lg text-sm font-medium transition-colors">Close</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }`;
