@@ -12,6 +12,7 @@ import { renderDashboardShell } from './dashboard.js';
 import { renderLandingShell } from './landing.js';
 import { renderKanbanShell } from './kanban.js';
 import { renderWizardShell } from './wizard.js';
+import { checkShellFitness } from './fitness.js';
 import { getBoilerplateFiles } from '../templates/boilerplate.js';
 import { logger } from '../utils/logger.js';
 
@@ -61,14 +62,25 @@ export function renderFromSpec(spec: AppSpec): ShellRenderResult {
 }
 
 /**
- * Full pipeline: prompt → spec (via LLM or fallback) → rendered files.
+ * Full pipeline: prompt → fitness check → spec (via LLM or fallback) → rendered files.
  * If llmExtract is provided, uses it to extract spec from prompt.
  * Otherwise falls back to deterministic spec generation.
+ *
+ * RETURNS NULL if the fitness gate decides the prompt needs full LLM generation.
+ * The caller (runner.ts) should then use the LLM tool-call path instead.
  */
 export async function renderFromPrompt(
   prompt: string,
   llmExtract?: (systemPrompt: string, userPrompt: string) => Promise<string>
-): Promise<ShellRenderResult> {
+): Promise<ShellRenderResult | null> {
+  // ── FITNESS GATE: Check if shells can serve this prompt ──
+  const fitness = checkShellFitness(prompt);
+  if (fitness.recommendation === 'llm') {
+    logger.info(`[FITNESS GATE] Prompt escapes to LLM (score: ${fitness.score}/100, reason: ${fitness.reason})`);
+    return null;  // Signal to caller: use full LLM generation
+  }
+  logger.info(`[FITNESS GATE] Shell path approved (score: ${fitness.score}/100)`);
+
   let spec: AppSpec | null = null;
 
   // Try LLM extraction first (fast, cheap — just JSON, no code)

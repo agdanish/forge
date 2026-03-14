@@ -10,6 +10,7 @@ import { generateEmergencyZip } from "../tools/emergencyZip.js";
 import { validateZip } from "../validation/zipValidator.js";
 import { getScaffoldHint } from "../templates/index.js";
 import { renderFromPrompt } from "../shells/renderer.js";
+import { checkShellFitness } from "../shells/fitness.js";
 import type { Job, AgentEvent, TokenUsage, FileAttachment, WebSocketJobEvent } from "../types/index.js";
 import fs from "fs/promises";
 import path from "path";
@@ -510,7 +511,7 @@ export class AgentRunner extends EventEmitter implements TypedEventEmitter {
 
   // ─── Shell Compilation → ZIP helper ─────────────────────────────────────
 
-  private async shellCompileToZip(prompt: string): Promise<{ zipPath: string; projectDir: string; files: string[]; responseText: string } | null> {
+  private async shellCompileToZip(prompt: string): Promise<{ zipPath: string; projectDir: string; files: string[]; responseText: string; fitnessRejected?: boolean } | null> {
     try {
       const llm = getLLMClient();
       // Use LLM for spec extraction (cheap — just JSON, no code gen)
@@ -518,6 +519,12 @@ export class AgentRunner extends EventEmitter implements TypedEventEmitter {
         const specResult = await llm.generate({ prompt: user, systemPrompt: sys, tools: false });
         return specResult.text || '';
       });
+
+      // Fitness gate rejected — signal to caller to skip deterministic fallback too
+      if (!shellResult) {
+        logger.info('Shell compiler returned null (likely fitness gate rejection) — will route to LLM');
+        return null;
+      }
 
       // Write files to temp directory and create ZIP
       const tmpDir = path.join(process.cwd(), '.tmp-shell-' + Date.now());
@@ -551,6 +558,10 @@ export class AgentRunner extends EventEmitter implements TypedEventEmitter {
     }
   }
 
+  // ── Fitness-aware fallback: if shell compiler returns null due to fitness gate,
+  //    the deterministic fallback should ALSO be skipped (same prompt won't fit shells).
+  //    Only the LLM tool-call path can handle these prompts properly. ──
+
   // ─── Job Processing (hardened: shell-first, retry, emergency ZIP, timing) ──
 
   private async processJob(job: Job, useV2Submit = false): Promise<void> {
@@ -578,6 +589,12 @@ export class AgentRunner extends EventEmitter implements TypedEventEmitter {
       const shellResult = await this.shellCompileToZip(job.prompt);
       timings.shellEnd = Date.now() - t0;
 
+      // ── FITNESS-AWARE ROUTING ──
+      // Check fitness BEFORE deciding fallback path. If fitness gate rejected
+      // the prompt, deterministic fallback will be equally bad — go straight to LLM.
+      const fitness = checkShellFitness(job.prompt);
+      const fitnessRejected = fitness.recommendation === 'llm';
+
       if (shellResult) {
         logger.info(`⏱ TIMING: Shell compilation took ${timings.shellEnd - timings.shellStart}ms`);
         zipPath = shellResult.zipPath;
@@ -593,49 +610,53 @@ export class AgentRunner extends EventEmitter implements TypedEventEmitter {
           usedShellCompiler = false;
 
           // ── FALLBACK 1.5: Retry with deterministic spec (no LLM, fast) ──
-          try {
-            const { generateFallbackSpec } = await import('../shells/spec.js');
-            const { renderFromSpec } = await import('../shells/renderer.js');
-            const fallbackSpec = generateFallbackSpec(job.prompt);
-            const fallbackResult = renderFromSpec(fallbackSpec);
-            logger.info(`Deterministic fallback: ${fallbackSpec.appName} (${fallbackSpec.shell} shell)`);
+          // Only if fitness says shells are appropriate
+          if (!fitnessRejected) {
+            try {
+              const { generateFallbackSpec } = await import('../shells/spec.js');
+              const { renderFromSpec } = await import('../shells/renderer.js');
+              const fallbackSpec = generateFallbackSpec(job.prompt);
+              const fallbackResult = renderFromSpec(fallbackSpec);
+              logger.info(`Deterministic fallback: ${fallbackSpec.appName} (${fallbackSpec.shell} shell)`);
 
-            // Write and ZIP the fallback
-            const tmpDir2 = path.join(process.cwd(), '.tmp-shell-fallback-' + Date.now());
-            await fs.mkdir(tmpDir2, { recursive: true });
-            for (const file of fallbackResult.files) {
-              const fp = path.join(tmpDir2, file.path);
-              await fs.mkdir(path.dirname(fp), { recursive: true });
-              await fs.writeFile(fp, file.content, 'utf-8');
+              const tmpDir2 = path.join(process.cwd(), '.tmp-shell-fallback-' + Date.now());
+              await fs.mkdir(tmpDir2, { recursive: true });
+              for (const file of fallbackResult.files) {
+                const fp = path.join(tmpDir2, file.path);
+                await fs.mkdir(path.dirname(fp), { recursive: true });
+                await fs.writeFile(fp, file.content, 'utf-8');
+              }
+              const zipPath2 = tmpDir2 + '.zip';
+              await new Promise<void>((resolve, reject) => {
+                const output = createWriteStream(zipPath2);
+                const archive = archiver('zip', { zlib: { level: 9 } });
+                output.on('close', () => resolve());
+                archive.on('error', (err: Error) => reject(err));
+                archive.pipe(output);
+                archive.directory(tmpDir2, false);
+                archive.finalize();
+              });
+              const val2 = await validateZip(zipPath2, fallbackResult.files.map(f => f.path));
+              if (val2.valid) {
+                zipPath = zipPath2;
+                projectDir = tmpDir2;
+                projectFiles = fallbackResult.files.map(f => f.path);
+                responseText = `${fallbackSpec.appName} — ${fallbackSpec.tagline}\n\n✨ Features: ${fallbackSpec.views.join(', ')}, ${fallbackSpec.categories.slice(0, 3).join(', ')} categories\n🛠️ Stack: React 18 + TypeScript + Tailwind CSS + Vite\n🚀 Setup: npm install && npm run dev`;
+                usedShellCompiler = true;
+                logger.info('Deterministic fallback succeeded — skipping LLM tool-call path');
+              } else {
+                logger.warn('Deterministic fallback also failed validation — proceeding to LLM');
+              }
+            } catch (fbErr) {
+              logger.warn(`Deterministic fallback error: ${(fbErr as Error).message} — proceeding to LLM`);
             }
-            const zipPath2 = tmpDir2 + '.zip';
-            await new Promise<void>((resolve, reject) => {
-              const output = createWriteStream(zipPath2);
-              const archive = archiver('zip', { zlib: { level: 9 } });
-              output.on('close', () => resolve());
-              archive.on('error', (err: Error) => reject(err));
-              archive.pipe(output);
-              archive.directory(tmpDir2, false);
-              archive.finalize();
-            });
-            const val2 = await validateZip(zipPath2, fallbackResult.files.map(f => f.path));
-            if (val2.valid) {
-              zipPath = zipPath2;
-              projectDir = tmpDir2;
-              projectFiles = fallbackResult.files.map(f => f.path);
-              responseText = `${fallbackSpec.appName} — ${fallbackSpec.tagline}\n\n✨ Features: ${fallbackSpec.views.join(', ')}, ${fallbackSpec.categories.slice(0, 3).join(', ')} categories\n🛠️ Stack: React 18 + TypeScript + Tailwind CSS + Vite\n🚀 Setup: npm install && npm run dev`;
-              usedShellCompiler = true;
-              logger.info('Deterministic fallback succeeded — skipping LLM tool-call path');
-            } else {
-              logger.warn('Deterministic fallback also failed validation — proceeding to LLM');
-            }
-          } catch (fbErr) {
-            logger.warn(`Deterministic fallback error: ${(fbErr as Error).message} — proceeding to LLM`);
+          } else {
+            logger.info('Fitness gate rejected prompt — skipping deterministic fallback, going to LLM');
           }
         }
-      } else {
-        // ── Shell compile returned null — try deterministic fallback before LLM ──
-        logger.warn('Shell compilation returned null. Trying deterministic fallback spec.');
+      } else if (!fitnessRejected) {
+        // Shell compile returned null but fitness says shells OK — try deterministic fallback
+        logger.warn('Shell compilation returned null (not fitness). Trying deterministic fallback spec.');
         try {
           const { generateFallbackSpec } = await import('../shells/spec.js');
           const { renderFromSpec } = await import('../shells/renderer.js');
@@ -671,6 +692,9 @@ export class AgentRunner extends EventEmitter implements TypedEventEmitter {
         } catch (fbErr) {
           logger.warn(`Deterministic fallback error: ${(fbErr as Error).message}`);
         }
+      } else {
+        // Fitness rejected AND shell compile returned null — go straight to LLM
+        logger.info('Fitness gate rejected prompt — routing directly to full LLM generation');
       }
 
       // ── FALLBACK PATH: LLM Tool-Call Generation (only if deterministic paths all failed) ──
