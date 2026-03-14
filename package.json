@@ -23,7 +23,14 @@
     "test:coverage": "vitest run --coverage",
     "lint": "eslint src --ext .ts,.tsx",
     "format": "prettier --write \"src/**/*.{ts,tsx}\"",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test:smoke": "tsx scripts/smoke-test.ts",
+    "test:fitness": "tsx scripts/fitness-test.ts",
+    "test:adversarial": "tsx scripts/adversarial25-test.ts",
+    "test:capability": "tsx scripts/capability-test.ts",
+    "test:weird": "tsx scripts/weird-prompt-test.ts",
+    "test:exploratory": "tsx scripts/exploratory-validation.ts",
+    "test:all-offline": "tsx scripts/smoke-test.ts && tsx scripts/fitness-test.ts && tsx scripts/adversarial25-test.ts && tsx scripts/capability-test.ts && tsx scripts/weird-prompt-test.ts"
   },
   "keywords": [
     "ai",
@@ -55,6 +62,7 @@
     "zod": "^3.24.2"
   },
   "devDependencies": {
+    "@playwright/test": "^1.58.2",
     "@types/archiver": "^7.0.0",
     "@types/figlet": "^1.7.0",
     "@types/node": "^22.13.1",
@@ -63,6 +71,7 @@
     "@vitest/coverage-v8": "^3.0.5",
     "eslint": "^9.19.0",
     "msw": "^2.7.0",
+    "playwright": "^1.58.2",
     "prettier": "^3.4.2",
     "tsup": "^8.3.6",
     "tsx": "^4.19.2",

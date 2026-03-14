@@ -34,3 +34,5 @@ temp/
 
 # Config store (contains API keys)
 .seed-agent/
+.exploratory-tmp/
+reports/exploratory/
