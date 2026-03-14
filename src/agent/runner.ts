@@ -11,6 +11,8 @@ import { validateZip } from "../validation/zipValidator.js";
 import { getScaffoldHint } from "../templates/index.js";
 import { renderFromPrompt } from "../shells/renderer.js";
 import { checkShellFitness } from "../shells/fitness.js";
+import { scoreOutput, type JudgeScore } from "../judge/proxy.js";
+import { checkTimeBudget, TIME_BUDGET } from "../judge/policy.js";
 import type { Job, AgentEvent, TokenUsage, FileAttachment, WebSocketJobEvent } from "../types/index.js";
 import fs from "fs/promises";
 import path from "path";
@@ -603,6 +605,24 @@ export class AgentRunner extends EventEmitter implements TypedEventEmitter {
         responseText = shellResult.responseText;
         usedShellCompiler = true;
 
+        // ── JUDGE PROXY: Score the deterministic output ──
+        try {
+          const appTsxFile = shellResult.files.find((f: string) => f.includes('App.tsx'));
+          if (appTsxFile) {
+            const appContent = await fs.readFile(path.join(projectDir, appTsxFile), 'utf-8');
+            const judgeScore = scoreOutput({
+              appTsx: appContent,
+              files: projectFiles,
+              lane: fitness.recommendation === 'composer' ? 'composer' : 'shell',
+              elapsedMs: timings.shellEnd - timings.shellStart,
+              fitnessScore: fitness.score,
+            });
+            logger.info(`[JUDGE] Pre-submit score: Func=${judgeScore.functionality}/10 Design=${judgeScore.design}/10 Conf=${judgeScore.confidence}/100`);
+          }
+        } catch (judgeErr) {
+          logger.debug(`Judge scoring failed (non-blocking): ${(judgeErr as Error).message}`);
+        }
+
         // Validate the shell-compiled ZIP
         const validation = await validateZip(zipPath, projectFiles);
         if (!validation.valid) {
@@ -699,6 +719,19 @@ export class AgentRunner extends EventEmitter implements TypedEventEmitter {
 
       // ── FALLBACK PATH: LLM Tool-Call Generation (only if deterministic paths all failed) ──
       if (!usedShellCompiler) {
+        // ── TIME BUDGET CHECK: Skip LLM if running low ──
+        const timeBudget = checkTimeBudget(t0 + timings.shellStart);
+        if (timeBudget.isEmergency) {
+          logger.warn('[POLICY] Emergency time budget — using emergency ZIP instead of LLM');
+          const emergency = await generateEmergencyZip(job.prompt);
+          zipPath = emergency.zipPath;
+          projectDir = emergency.projectDir;
+          projectFiles = emergency.files;
+          responseText = emergency.text;
+          usedShellCompiler = true; // Skip LLM path below
+        }
+
+        if (!usedShellCompiler) {
         logger.info('All deterministic paths failed — using LLM tool-call generation (slow fallback)');
         timings.genStart = Date.now() - t0;
         const result = await llm.generate({
@@ -757,6 +790,7 @@ export class AgentRunner extends EventEmitter implements TypedEventEmitter {
           timings.emergencyEnd = Date.now() - t0;
           logger.info(`⏱ TIMING: Emergency ZIP took ${(timings.emergencyEnd - (timings.emergencyStart || 0))}ms`);
         }
+        } // close time-budget if (!usedShellCompiler)
       }
 
       // ── Stage 2: Upload with retry ──

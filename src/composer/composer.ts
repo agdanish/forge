@@ -15,6 +15,7 @@ import { renderStoreCatalogKit } from './renderers/store-catalog.js';
 import { renderMapSpliviewKit } from './renderers/map-splitview.js';
 import { renderMediaPlayerKit } from './renderers/media-player.js';
 import { renderEditorLiteKit } from './renderers/editor-lite.js';
+import { repairComposedOutput, type RepairResult } from './repair.js';
 import { getBoilerplateFiles } from '../templates/boilerplate.js';
 import { logger } from '../utils/logger.js';
 
@@ -25,6 +26,8 @@ export interface ComposerResult {
   kit: KitId;
   files: { path: string; content: string }[];
   scoring: ComposerScoreResult;
+  /** Repair diagnostics (if repair was attempted) */
+  repair?: RepairResult;
 }
 
 const KIT_RENDERERS: Record<KitId, (spec: AppSpec) => string> = {
@@ -57,7 +60,19 @@ export function composeFromPrompt(prompt: string, spec: AppSpec): ComposerResult
     return null;
   }
 
-  const appTsx = renderer(spec);
+  let appTsx = renderer(spec);
+
+  // ── BOUNDED REPAIR: one deterministic pass ──
+  const repairResult = repairComposedOutput(appTsx);
+  if (repairResult.shouldEscalate) {
+    logger.warn(`[COMPOSER] Repair escalation: ${repairResult.diagnoses.filter(d => d.shouldEscalate).map(d => d.issue).join('; ')}`);
+    return null; // Escalate to LLM lane
+  }
+  if (repairResult.wasRepaired) {
+    appTsx = repairResult.appTsx;
+    logger.info(`[COMPOSER] Repaired: ${repairResult.diagnoses.filter(d => d.repaired).map(d => d.issue).join('; ')}`);
+  }
+
   const readmeMd = generateComposerReadme(spec, primaryKit);
 
   // Combine boilerplate + generated files
@@ -83,6 +98,7 @@ export function composeFromPrompt(prompt: string, spec: AppSpec): ComposerResult
     kit: primaryKit,
     files,
     scoring,
+    repair: repairResult,
   };
 }
 
