@@ -18,13 +18,14 @@ export function renderWizardShell(spec: AppSpec): string {
     : ['Getting Started', 'Preferences', 'Details', 'Review'];
   const stepsJSON = JSON.stringify(steps);
 
-  // Derive option groups from categories for each step
+  // Derive option groups from categories for each step (non-overlapping)
   const allCats = spec.categories;
+  const chunkSize = Math.max(2, Math.ceil(allCats.length / 3));
   const optionsPerStep = [
-    allCats.slice(0, 3),
-    allCats.slice(2, 5),
-    allCats.slice(3, 6),
-  ];
+    allCats.slice(0, chunkSize),
+    allCats.slice(chunkSize, chunkSize * 2),
+    allCats.slice(chunkSize * 2, chunkSize * 3),
+  ].map(chunk => chunk.length > 0 ? chunk : allCats.slice(0, 2)); // fallback: reuse first 2 if chunk is empty
   const optionsJSON = JSON.stringify(optionsPerStep);
 
   const kpiJSON = JSON.stringify(spec.kpis);

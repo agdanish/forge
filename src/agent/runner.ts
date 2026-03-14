@@ -462,6 +462,8 @@ export class AgentRunner extends EventEmitter implements TypedEventEmitter {
         }
 
         this.emitEvent({ type: "job_found", job });
+        // Mark as processing BEFORE firing async to prevent duplicate pickup on next poll cycle
+        this.processingJobs.add(job.id);
         if (job.jobType === "SWARM") {
           this.acceptAndProcessSwarmJob(job).catch((error) => {
             this.emitEvent({ type: "error", message: `Failed to process swarm job ${job.id}`, error: error instanceof Error ? error : new Error(String(error)) });
@@ -683,6 +685,8 @@ export class AgentRunner extends EventEmitter implements TypedEventEmitter {
         const validation = await validateZip(zipPath, projectFiles);
         if (!validation.valid) {
           logger.warn(`Shell ZIP validation failed: ${validation.errors.join('; ')}. Trying deterministic fallback spec before LLM.`);
+          // Clean up the failed shell output before trying fallback
+          cleanupProject(projectDir, zipPath);
           usedShellCompiler = false;
 
           // ── FALLBACK 1.5: Retry with deterministic spec (no LLM, fast) ──

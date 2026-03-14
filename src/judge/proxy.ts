@@ -109,7 +109,7 @@ export function scoreOutput(opts: {
 
   // D2: Uses icons (lucide-react imports)
   const iconImports = (appTsx.match(/import\s*{[^}]+}\s*from\s*['"]lucide-react['"]/g) || []);
-  const iconCount = iconImports.length > 0 ? ((iconImports[0] ?? '').match(/,/g) || []).length + 1 : 0;
+  const iconCount = iconImports.reduce((sum, imp) => sum + ((imp.match(/,/g) || []).length + 1), 0);
   const d2 = Math.min(iconCount >= 5 ? 2 : iconCount >= 2 ? 1 : 0, 2);
   designScore += d2;
   signals.push({ name: 'icon_usage', score: d2, maxScore: 2, detail: `${iconCount} icons imported` });

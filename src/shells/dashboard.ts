@@ -30,7 +30,7 @@ type Status = 'active' | 'pending' | 'completed' | 'archived';
 type Priority = 'high' | 'medium' | 'low';
 type Tab = 'overview' | 'analytics' | 'records';
 
-interface Record {
+interface DataRecord {
   id: number;
   name: string;
   description: string;
@@ -52,7 +52,7 @@ interface KpiCard {
 // ── Data ──
 const KPIS: KpiCard[] = ${kpiJSON};
 const CATEGORIES: string[] = ${categoriesJSON};
-const INITIAL_DATA: Record[] = (${seedJSON} as Omit<Record, 'id'>[]).map((d, i) => ({ ...d, id: i + 1 }));
+const INITIAL_DATA: DataRecord[] = (${seedJSON} as Omit<DataRecord, 'id'>[]).map((d, i) => ({ ...d, id: i + 1 }));
 
 const STATUS_COLORS: { [key in Status]: string } = { ${statusColors} };
 const fmt = (n: number) => n >= 1_000_000 ? '$' + (n / 1_000_000).toFixed(1) + 'M' : n >= 1000 ? '$' + (n / 1000).toFixed(0) + 'k' : '$' + n;
@@ -66,7 +66,7 @@ export default function App() {
   const [sortAsc, setSortAsc] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [timeRange, setTimeRange] = useState('30d');
-  const [selectedRecord, setSelectedRecord] = useState<Record | null>(null);
+  const [selectedRecord, setSelectedRecord] = useState<DataRecord | null>(null);
 
   const filtered = useMemo(() => {
     let r = INITIAL_DATA.filter(item => {
