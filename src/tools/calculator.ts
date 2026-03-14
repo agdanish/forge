@@ -50,7 +50,7 @@ function sanitizeExpression(expr: string): string {
     [/\bmin\(/gi, "Math.min("],
     [/\bmax\(/gi, "Math.max("],
     [/\bpi\b/gi, "Math.PI"],
-    [/\be\b/gi, "Math.E"],
+    [/(?<!\d)\be\b(?!\d)/gi, "Math.E"],
     [/\^/g, "**"], // Convert ^ to ** for exponentiation
   ];
 

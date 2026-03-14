@@ -38,8 +38,8 @@ import {
 } from 'lucide-react';
 
 interface KpiCard { label: string; value: string; trend: string; trendUp: boolean; }
-interface Record {
-  name: string; description: string; status: 'active' | 'pending' | 'completed' | 'archived';
+interface DataRecord {
+  id: number; name: string; description: string; status: 'active' | 'pending' | 'completed' | 'archived';
   priority: 'high' | 'medium' | 'low'; category: string; value: number; date: string; assignee: string;
   stage?: string;
 }
@@ -47,23 +47,23 @@ interface Record {
 const STAGES: string[] = ${stagesJSON};
 const KPIS: KpiCard[] = ${kpiJSON};
 const CATEGORIES: string[] = ${categoriesJSON};
-const STATUS_COLORS: Record<string, string> = { ${statusColors} } as any;
-const PRIORITY_COLORS: Record<string, string> = { ${priorityColors} } as any;
+const STATUS_COLORS: { [key: string]: string } = { ${statusColors} } as any;
+const PRIORITY_COLORS: { [key: string]: string } = { ${priorityColors} } as any;
 
 // Assign each seed record to a stage
-const RAW_DATA: Record[] = ${seedJSON};
-const INITIAL_DATA: Record[] = RAW_DATA.map((r, i) => ({
+const RAW_DATA: DataRecord[] = (${seedJSON} as any[]).map((r: any, i: number) => ({ ...r, id: i + 1 }));
+const INITIAL_DATA: DataRecord[] = RAW_DATA.map((r, i) => ({
   ...r,
   stage: STAGES[i % STAGES.length],
 }));
 
 export default function App() {
-  const [items, setItems] = useState<Record[]>(INITIAL_DATA);
+  const [items, setItems] = useState<DataRecord[]>(INITIAL_DATA);
   const [search, setSearch] = useState('');
   const [priorityFilter, setPriorityFilter] = useState<string>('all');
-  const [selectedItem, setSelectedItem] = useState<Record | null>(null);
+  const [selectedItem, setSelectedItem] = useState<DataRecord | null>(null);
   const [viewMode, setViewMode] = useState<'board' | 'list'>('board');
-  const [menuOpen, setMenuOpen] = useState<string | null>(null);
+  const [menuOpen, setMenuOpen] = useState<number | null>(null);
   const [mobileMenu, setMobileMenu] = useState(false);
 
   const filtered = useMemo(() => {
@@ -75,7 +75,7 @@ export default function App() {
   }, [items, search, priorityFilter]);
 
   const stageGroups = useMemo(() => {
-    const groups: { [key: string]: Record[] } = {};
+    const groups: { [key: string]: DataRecord[] } = {};
     STAGES.forEach(s => { groups[s] = []; });
     filtered.forEach(item => {
       const stage = item.stage || STAGES[0];
@@ -85,13 +85,13 @@ export default function App() {
     return groups;
   }, [filtered]);
 
-  const moveItem = (item: Record, direction: 'forward' | 'back') => {
+  const moveItem = (item: DataRecord, direction: 'forward' | 'back') => {
     const currentIdx = STAGES.indexOf(item.stage || STAGES[0]);
     const newIdx = direction === 'forward' ? Math.min(currentIdx + 1, STAGES.length - 1) : Math.max(currentIdx - 1, 0);
     if (newIdx === currentIdx) return;
-    setItems(prev => prev.map(r => r.name === item.name ? { ...r, stage: STAGES[newIdx] } : r));
+    setItems(prev => prev.map(r => r.id === item.id ? { ...r, stage: STAGES[newIdx] } : r));
     setMenuOpen(null);
-    if (selectedItem?.name === item.name) setSelectedItem({ ...item, stage: STAGES[newIdx] });
+    if (selectedItem?.id === item.id) setSelectedItem({ ...item, stage: STAGES[newIdx] });
   };
 
   const totalValue = filtered.reduce((s, r) => s + r.value, 0);
@@ -181,17 +181,17 @@ export default function App() {
                 </div>
                 <div className="space-y-2.5">
                   {(stageGroups[stage] || []).map((item, idx) => (
-                    <div key={idx}
+                    <div key={item.id}
                       className="${t.card} border ${t.cardBorder} rounded-xl p-3 cursor-pointer hover:border-${isDark ? 'indigo' : 'blue'}-500/50 transition-all hover:shadow-lg group"
                       onClick={() => setSelectedItem(item)}>
                       <div className="flex items-start justify-between mb-2">
                         <span className="font-medium text-sm leading-tight flex-1">{item.name}</span>
                         <div className="relative">
-                          <button onClick={e => { e.stopPropagation(); setMenuOpen(menuOpen === item.name ? null : item.name); }}
+                          <button onClick={e => { e.stopPropagation(); setMenuOpen(menuOpen === item.id ? null : item.id); }}
                             className="${t.textMuted} hover:${t.text} opacity-0 group-hover:opacity-100 transition-opacity p-0.5">
                             <MoreVertical className="w-3.5 h-3.5" />
                           </button>
-                          {menuOpen === item.name && (
+                          {menuOpen === item.id && (
                             <div className="absolute right-0 top-6 ${t.card} border ${t.cardBorder} rounded-lg shadow-xl z-20 py-1 min-w-[140px]"
                               onClick={e => e.stopPropagation()}>
                               {STAGES.indexOf(item.stage || STAGES[0]) > 0 && (

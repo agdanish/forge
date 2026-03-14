@@ -564,7 +564,7 @@ export class AgentRunner extends EventEmitter implements TypedEventEmitter {
   // ─── Files → ZIP helper (shared by shell, composer, and fallback paths) ──
 
   private async filesToZip(files: { path: string; content: string }[], label: string): Promise<{ zipPath: string; projectDir: string; fileNames: string[] }> {
-    const tmpDir = path.join(process.cwd(), `.tmp-${label}-${Date.now()}`);
+    const tmpDir = path.join((await import("os")).tmpdir(), `seedstr-${label}-${Date.now()}`);
     await fs.mkdir(tmpDir, { recursive: true });
 
     for (const file of files) {
@@ -896,7 +896,7 @@ export class AgentRunner extends EventEmitter implements TypedEventEmitter {
           logger.warn('Attempting emergency ZIP on unexpected error');
           const emergency = await generateEmergencyZip(job.prompt);
           const uploadedFile = await this.client.uploadFile(emergency.zipPath);
-          const useV2 = job.jobType === "SWARM";
+          const useV2 = useV2Submit || job.jobType === "SWARM";
           await (useV2
             ? this.client.submitResponseV2(job.id, emergency.text, "FILE", [uploadedFile])
             : this.client.submitResponseWithFiles(job.id, { content: emergency.text, responseType: "FILE", files: [uploadedFile] }));

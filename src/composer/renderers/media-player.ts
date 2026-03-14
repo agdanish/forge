@@ -71,17 +71,18 @@ export default function App() {
   useEffect(() => {
     if (isPlaying && currentTrack) {
       intervalRef.current = window.setInterval(() => {
-        setProgress(prev => {
-          if (prev >= currentTrack.duration) {
-            playNext();
-            return 0;
-          }
-          return prev + 1;
-        });
+        setProgress(prev => prev + 1);
       }, 1000);
     }
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
   }, [isPlaying, currentTrack]);
+
+  // Auto-advance to next track when progress exceeds duration
+  useEffect(() => {
+    if (currentTrack && progress >= currentTrack.duration) {
+      playNext();
+    }
+  }, [progress, currentTrack]);
 
   const filtered = useMemo(() => {
     let result = tracks;
