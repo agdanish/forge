@@ -1,23 +1,27 @@
 /**
- * Shell Fitness Gate — decides whether a prompt can be well-served by
+ * Shell Fitness Gate v2 — decides whether a prompt can be well-served by
  * deterministic shells, or should escape to full LLM code generation.
  *
- * Returns a fitness score 0-100 and a recommendation: 'shell' | 'llm'.
+ * Three-layer scoring system:
+ *   Layer 1: Archetype detection (14 known prompt archetypes from scaffold hints)
+ *   Layer 2: Semantic signal analysis (verb patterns, entity patterns, UI patterns)
+ *   Layer 3: Keyword scoring (shell-positive vs escape keywords)
  *
- * The key insight: shells are GREAT for management tools, dashboards,
- * landing pages, workflows, and guided forms. But they're BAD for:
- *   - chat apps, messaging, real-time collaboration
- *   - games, interactive visualizations, animations
- *   - e-commerce with cart/checkout
- *   - social media / feed-based UIs
- *   - map-based / geolocation apps
- *   - file editors, code editors, document tools
- *   - music/media players
- *   - specific API integrations (weather, stocks, etc.)
+ * Returns a fitness score 0-100 and recommendation: 'shell' | 'llm'.
  *
- * When a prompt clearly needs one of those, shell output will look wrong
- * and score poorly on Functionality. Better to spend 20-30s on LLM generation
- * than submit a mismatched shell in 2s.
+ * SHELLS HANDLE (5 shells):
+ *   universal  → CRUD tools, trackers, managers, CRM, schedulers
+ *   dashboard  → analytics, KPIs, reporting, metrics, monitoring
+ *   landing    → landing pages, showcases, portfolios, marketing
+ *   kanban     → pipeline boards, workflows, sprint boards, triage
+ *   wizard     → onboarding, intake, assessment, guided setup
+ *
+ * LLM HANDLES (everything else):
+ *   chat/messaging, games, e-commerce with cart, social feeds,
+ *   editors, media players, calendar grids, maps, calculators, etc.
+ *
+ * Research-backed: archetypes from templates/index.ts (14 types),
+ * hackathon research (evaluation_model.md, competitor_landscape.md).
  */
 
 import { logger } from '../utils/logger.js';
@@ -28,184 +32,388 @@ export interface FitnessResult {
   reason: string;
   matchedShellKeywords: number;
   matchedEscapeKeywords: number;
+  detectedArchetype: string | null;
 }
 
-// ── Keywords that STRONGLY indicate a shell will work well ──────────────
-const SHELL_POSITIVE_KEYWORDS = [
-  // Universal shell
-  'manage', 'manager', 'tracker', 'tracking', 'crud', 'list', 'catalog',
-  'inventory', 'directory', 'registry', 'crm', 'contact', 'booking',
-  'scheduling', 'appointment', 'reservation', 'log', 'journal',
-  // Dashboard shell
-  'dashboard', 'analytics', 'metrics', 'kpi', 'reporting', 'overview',
-  'monitor', 'statistics', 'insights',
-  // Landing shell
-  'landing page', 'homepage', 'showcase', 'portfolio', 'product page',
-  'coming soon', 'waitlist', 'marketing',
-  // Kanban shell
-  'kanban', 'board', 'pipeline', 'workflow', 'stages', 'sprint',
-  'backlog', 'triage', 'escalation',
-  // Wizard shell
-  'wizard', 'onboarding', 'intake', 'questionnaire', 'assessment',
-  'eligibility', 'step-by-step', 'guided', 'registration flow',
-  'setup flow', 'configure',
-  // Generic management patterns
-  'admin panel', 'back office', 'tool for', 'system for', 'platform for',
-  'app for managing', 'app for tracking', 'planner', 'organizer',
-  'task', 'project', 'ticket', 'issue', 'expense', 'invoice',
-  'patient', 'student', 'employee', 'volunteer', 'donor', 'member',
-  'course', 'event', 'order', 'product', 'property', 'recipe',
-  'workout', 'habit', 'goal', 'budget',
+// ══════════════════════════════════════════════════════════════════════════════
+// LAYER 1: ARCHETYPE DETECTION
+// Maps the 14 known archetypes to shell capability.
+// An archetype match is a STRONG signal — overrides keyword scoring.
+// ══════════════════════════════════════════════════════════════════════════════
+
+interface Archetype {
+  id: string;
+  keywords: string[];
+  patterns: RegExp[];
+  shellCapable: boolean;   // Can a shell handle this archetype?
+  confidence: number;      // How much to boost/penalize score (absolute)
+}
+
+const ARCHETYPES: Archetype[] = [
+  // ── SHELL-CAPABLE ARCHETYPES ──
+  {
+    id: 'saas-dashboard',
+    keywords: ['dashboard', 'admin', 'saas', 'crm', 'management', 'panel', 'monitor', 'overview', 'control'],
+    patterns: [/\b(?:admin|management)\s+(?:panel|dashboard)\b/i, /\b(?:crm|erp)\b/i],
+    shellCapable: true,
+    confidence: 85,
+  },
+  {
+    id: 'analytics',
+    keywords: ['analytics', 'chart', 'graph', 'report', 'reporting', 'data', 'visualization', 'insight', 'statistic', 'metric', 'metrics', 'bi'],
+    patterns: [/\b(?:analytics|reporting)\s+(?:dashboard|tool|platform|panel)\b/i, /\bdata\s+vis/i, /\bmetrics?\s+(?:reporting|panel|dashboard)\b/i],
+    shellCapable: true,
+    confidence: 85,
+  },
+  {
+    id: 'crud-tool',
+    keywords: ['crud', 'manage', 'form', 'task', 'todo', 'note', 'item', 'list', 'record', 'entry', 'tracker'],
+    patterns: [/\b(?:task|note|item|record)\s+(?:manager|tracker|list)\b/i, /\bto-?do\b/i],
+    shellCapable: true,
+    confidence: 90,
+  },
+  {
+    id: 'productivity-kanban',
+    keywords: ['kanban', 'board', 'workflow', 'sprint', 'agile', 'scrum', 'backlog', 'column', 'swim', 'pipeline'],
+    patterns: [/\bkanban\b/i, /\b(?:sprint|scrum)\s+board\b/i, /\bworkflow\s+(?:board|tool)\b/i],
+    shellCapable: true,
+    confidence: 85,
+  },
+  {
+    id: 'portfolio-showcase',
+    keywords: ['portfolio', 'showcase', 'gallery', 'resume', 'cv', 'personal', 'website', 'landing', 'agency'],
+    patterns: [/\b(?:landing|portfolio)\s+page\b/i, /\bpersonal\s+(?:website|site)\b/i],
+    shellCapable: true,
+    confidence: 80,
+  },
+  {
+    id: 'finance',
+    keywords: ['budget', 'expense', 'finance', 'money', 'invoice', 'billing', 'payment', 'cost', 'salary', 'income', 'spend', 'accounting', 'transaction'],
+    patterns: [/\b(?:budget|expense|finance)\s+(?:tracker|manager|tool)\b/i, /\binvoice\b/i],
+    shellCapable: true,
+    confidence: 80,
+  },
+  {
+    id: 'health-fitness',
+    keywords: ['health', 'fitness', 'workout', 'exercise', 'nutrition', 'diet', 'calories', 'wellness', 'gym', 'training', 'habit'],
+    patterns: [/\b(?:fitness|workout|health)\s+(?:tracker|app|tool)\b/i, /\bhabit\s+tracker\b/i],
+    shellCapable: true,
+    confidence: 75,
+  },
+  {
+    id: 'education-platform',
+    keywords: ['education', 'learning', 'course', 'study', 'school', 'teach', 'lesson', 'curriculum', 'student', 'enrollment'],
+    patterns: [/\b(?:course|learning)\s+(?:platform|management|tracker)\b/i, /\bstudent\s+(?:portal|dashboard)\b/i],
+    shellCapable: true,
+    confidence: 75,
+  },
+  {
+    id: 'wizard-intake',
+    keywords: ['wizard', 'onboarding', 'intake', 'questionnaire', 'assessment', 'eligibility', 'guided', 'step-by-step', 'configure'],
+    patterns: [/\b(?:onboarding|intake|setup)\s+(?:wizard|flow|form)\b/i, /\bstep-by-step\b/i, /\beligibility\s+(?:check|assess)/i],
+    shellCapable: true,
+    confidence: 85,
+  },
+  {
+    id: 'real-estate',
+    keywords: ['real estate', 'property', 'house', 'apartment', 'rent', 'mortgage', 'listing', 'realty', 'flat'],
+    patterns: [/\breal\s+estate\b/i, /\bproperty\s+(?:listing|manager|search)\b/i],
+    shellCapable: true,  // Universal shell handles property listings well
+    confidence: 70,
+  },
+
+  // ── LLM-REQUIRED ARCHETYPES ──
+  {
+    id: 'ai-chat',
+    keywords: ['chat', 'conversation', 'message', 'assistant', 'bot', 'gpt', 'llm', 'copilot'],
+    patterns: [/\bchat\s+(?:app|bot|interface|ui)\b/i, /\b(?:ai|gpt)\s+(?:chat|assistant)\b/i, /\bmessaging\b/i],
+    shellCapable: false,
+    confidence: 90,
+  },
+  {
+    id: 'ecommerce',
+    keywords: ['shop', 'store', 'cart', 'buy', 'sell', 'marketplace', 'ecommerce', 'commerce', 'checkout'],
+    patterns: [/\b(?:shopping|online)\s+(?:cart|store)\b/i, /\bcheckout\b/i, /\bmarketplace\b/i, /\be-?commerce\b/i],
+    shellCapable: false,
+    confidence: 85,
+  },
+  {
+    id: 'social-feed',
+    keywords: ['social', 'community', 'feed', 'post', 'follow', 'friend', 'network', 'tweet', 'share', 'like', 'comment'],
+    patterns: [/\bsocial\s+(?:media|network|feed)\b/i, /\b(?:twitter|instagram|reddit|facebook)\s*clone\b/i, /\bnews\s+feed\b/i],
+    shellCapable: false,
+    confidence: 85,
+  },
+  {
+    id: 'game-quiz',
+    keywords: ['game', 'quiz', 'trivia', 'puzzle', 'score', 'leaderboard', 'challenge', 'play', 'level', 'word', 'memory'],
+    patterns: [/\bgame\b/i, /\b(?:quiz|trivia)\s+(?:app|game)\b/i, /\b(?:tetris|snake|wordle|chess|tic-?tac-?toe)\b/i],
+    shellCapable: false,
+    confidence: 90,
+  },
+  {
+    id: 'calendar-events',
+    keywords: ['calendar', 'monthly view', 'week view', 'day view', 'agenda view'],
+    patterns: [/\bcalendar\s+(?:app|grid|view)\b/i, /\bmonthly?\s+(?:calendar|view)\b/i, /\bcalendar\s+with\b/i],
+    shellCapable: false,  // Calendar grid needs custom UI — shells don't have it
+    confidence: 70,
+  },
 ];
 
-// ── Keywords that indicate a shell will NOT serve the prompt well ────────
-// These prompts need custom UI that shells can't provide.
-const ESCAPE_KEYWORDS = [
-  // Chat / messaging
-  'chat', 'messaging', 'messenger', 'real-time', 'realtime', 'socket',
-  'conversation', 'dm', 'direct message', 'slack', 'discord',
-  // Games / interactive
-  'game', 'quiz game', 'trivia', 'arcade', 'puzzle', 'platformer',
-  'tic-tac-toe', 'chess', 'snake', 'tetris', 'wordle', 'hangman',
-  'simulation', 'virtual', 'interactive story',
-  // E-commerce with cart
-  'shopping cart', 'checkout', 'add to cart', 'ecommerce store',
-  'online store', 'marketplace', 'buy', 'purchase',
-  // Social / feed
-  'social media', 'social network', 'feed', 'timeline', 'news feed',
-  'twitter clone', 'instagram clone', 'reddit clone', 'forum',
-  'post', 'comment', 'like', 'follow', 'profile page',
-  // Map / geo
-  'map', 'geolocation', 'location-based', 'gps', 'route planner',
-  'store locator', 'nearby',
-  // Editors
-  'code editor', 'text editor', 'markdown editor', 'rich text',
-  'wysiwyg', 'drawing', 'paint', 'canvas', 'whiteboard',
-  'spreadsheet', 'diagram',
-  // Media players
-  'music player', 'video player', 'audio', 'podcast player',
-  'playlist', 'media player', 'spotify',
-  // Specific integrations
-  'weather app', 'stock ticker', 'stock trading', 'crypto',
-  'exchange rate', 'api integration', 'live data',
-  // Calculator / converter
-  'calculator', 'converter', 'unit converter', 'currency converter',
-  // File / upload
-  'file upload', 'file manager', 'cloud storage', 'dropbox',
-  'image gallery', 'photo album',
-  // Authentication
-  'login', 'signup', 'auth', 'authentication', 'password',
-  'oauth', 'jwt',
-  // Notification / email
-  'email client', 'inbox', 'notification center',
+// ══════════════════════════════════════════════════════════════════════════════
+// LAYER 2: SEMANTIC SIGNALS
+// Structural patterns in prompt that indicate shell fit or misfit.
+// ══════════════════════════════════════════════════════════════════════════════
+
+// Verb patterns that indicate management/tracking → shell-friendly
+const MANAGEMENT_VERBS = /\b(?:manage|track|organize|plan|schedule|monitor|log|record|administer|oversee|coordinate|assign|prioritize|categorize|filter|sort|group|archive)\b/i;
+
+// Verb patterns that indicate interactive/dynamic UI → LLM-needed
+const INTERACTIVE_VERBS = /\b(?:play|stream|draw|paint|drag|drop|animate|scroll|swipe|type|compose|edit|render|compile|upload|download|connect|sync|subscribe)\b/i;
+
+// Entity patterns indicating data management → shell-friendly
+const DATA_ENTITY_PATTERN = /\b(?:tasks?|projects?|tickets?|issues?|patients?|students?|employees?|contacts?|orders?|invoices?|records?|items?|products?|members?|clients?|leads?|cases?|assets?|events?|bookings?|appointments?|expenses?|donations?|volunteers?|shipments?|courses?|properties?|campaigns?|applications?|submissions?)\b/i;
+
+// UI-specific patterns indicating non-shell needs
+const CUSTOM_UI_PATTERNS = [
+  /\b(?:drag\s+and\s+drop|drag-and-drop|draggable)\b/i,
+  /\b(?:real-?time|live\s+(?:data|update|stream|preview))\b/i,
+  /\b(?:animation|animate|transition|parallax|3d|three\.?js)\b/i,
+  /\b(?:responsive\s+(?:email|newsletter))\b/i,
+  /\b(?:dark\s+mode\s+toggle|theme\s+switch)\b/i,
+  /\b(?:infinite\s+scroll|lazy\s+load|pagination)\b/i,
+  /\b(?:notification|toast|snackbar)\s+system\b/i,
+  /\b(?:file\s+upload|image\s+crop|pdf\s+viewer)\b/i,
 ];
 
-// ── Compound patterns: multi-word combos that strongly signal escape ─────
-const ESCAPE_PATTERNS: RegExp[] = [
-  /\bchat\s+app\b/i,
-  /\bmessaging\s+(?:app|platform|tool)\b/i,
+// ══════════════════════════════════════════════════════════════════════════════
+// LAYER 3: ESCAPE KEYWORDS (hard signals that shells can't serve)
+// ══════════════════════════════════════════════════════════════════════════════
+
+const HARD_ESCAPE_PATTERNS: RegExp[] = [
+  // Chat / messaging — STRONG escape
+  /\bchat\s+(?:app|application|interface|room|bot)\b/i,
+  /\bmessaging\s+(?:app|platform|tool|system)\b/i,
+  /\bslack[\s-]like\b/i,
+  /\bdiscord[\s-]like\b/i,
+  // Games — STRONG escape
   /\bgame\b/i,
-  /\bonline\s+store\b/i,
-  /\bshopping\s+cart\b/i,
-  /\bsocial\s+(?:media|network)\b/i,
+  /\b(?:tetris|snake|wordle|chess|tic-?tac-?toe|hangman|sudoku|minesweeper|pong|breakout|flappy)\b/i,
+  // E-commerce — STRONG escape
+  /\b(?:shopping\s+cart|add\s+to\s+cart|checkout\s+(?:flow|page|process))\b/i,
+  /\b(?:online|e-?commerce)\s+store\b/i,
+  // Social — STRONG escape
+  /\bsocial\s+(?:media|network|feed|platform)\b/i,
+  /\b(?:twitter|instagram|reddit|facebook|tiktok|youtube)\s*(?:clone|like|style)\b/i,
   /\bnews\s+feed\b/i,
-  /\bcode\s+editor\b/i,
-  /\btext\s+editor\b/i,
-  /\bmusic\s+player\b/i,
-  /\bvideo\s+player\b/i,
-  /\bweather\s+app\b/i,
-  /\bstock\s+(?:ticker|trading|tracker)\b/i,
-  /\bfile\s+(?:manager|upload)\b/i,
-  /\bimage\s+gallery\b/i,
-  /\bphoto\s+(?:album|gallery|sharing)\b/i,
-  /\bemail\s+client\b/i,
-  /\bcrypto\s+(?:wallet|exchange|trading)\b/i,
-  /\bclone\b/i,     // "twitter clone", "uber clone" etc. — always custom
-  /\blike\s+(?:uber|airbnb|spotify|netflix|tinder)\b/i,
+  // Editors — STRONG escape
+  /\b(?:code|text|markdown|rich[\s-]text|wysiwyg)\s+editor\b/i,
   /\bwhiteboard\b/i,
+  /\bdrawing\s+(?:app|canvas|tool)\b/i,
+  // Media — STRONG escape
+  /\b(?:music|video|audio|media)\s+player\b/i,
+  /\bspotify[\s-](?:like|clone|style)\b/i,
+  /\bnetflix[\s-](?:like|clone|style)\b/i,
+  // Clone pattern — ALWAYS escape
+  /\bclone\b/i,
+  /\blike\s+(?:uber|airbnb|spotify|netflix|tinder|whatsapp|telegram)\b/i,
+  /\b(?:uber|airbnb|spotify|netflix|tinder|whatsapp|telegram)[\s-](?:like|style|clone|inspired)\b/i,
+  // Calendar grid — escape (shells don't have month grid)
+  /\bmonthly?\s+calendar\b/i,
+  /\bcalendar\s+grid\b/i,
+  // Weather / live data — escape
+  /\bweather\s+(?:app|dashboard|forecast)\b/i,
+  /\bstock\s+(?:ticker|trading|market)\b/i,
+  /\bcrypto\s+(?:wallet|exchange|trading|tracker)\b/i,
+  // File / image specific
+  /\bfile\s+(?:manager|explorer|browser)\b/i,
+  /\bimage\s+gallery\b/i,
+  /\bphoto\s+(?:album|gallery|sharing|editor)\b/i,
+  // Email
+  /\bemail\s+(?:client|inbox)\b/i,
 ];
 
-// ── Shell-positive patterns ─────────────────────────────────────────────
-const SHELL_PATTERNS: RegExp[] = [
-  /\b(?:build|create|make)\s+(?:a\s+)?(?:.*?\s+)?(?:manager|tracker|dashboard|tool|system|platform)\b/i,
-  /\b(?:build|create|make)\s+(?:a\s+)?(?:.*?\s+)?(?:kanban|board|pipeline|workflow)\b/i,
-  /\b(?:build|create|make)\s+(?:a\s+)?(?:.*?\s+)?(?:wizard|intake|onboarding|assessment)\b/i,
-  /\b(?:build|create|make)\s+(?:a\s+)?(?:.*?\s+)?(?:landing|homepage|showcase)\b/i,
-  /\b(?:manage|track|organize|plan|schedule|monitor)\b/i,
-  /\badmin\s+(?:panel|dashboard|tool)\b/i,
-];
+// ══════════════════════════════════════════════════════════════════════════════
+// SCORING ENGINE
+// ══════════════════════════════════════════════════════════════════════════════
 
-const SHELL_THRESHOLD = 50;  // Below this → escape to LLM
+const THRESHOLD = 50;
 
-/**
- * Score how well a prompt fits the deterministic shell architecture.
- * Returns score (0-100) and recommendation ('shell' or 'llm').
- */
 export function checkShellFitness(prompt: string): FitnessResult {
   const lower = prompt.toLowerCase();
-  let score = 50; // Start neutral
+  const wordCount = prompt.trim().split(/\s+/).length;
+  let score = 50; // Neutral starting point
   let matchedShellKeywords = 0;
   let matchedEscapeKeywords = 0;
+  let detectedArchetype: string | null = null;
   const reasons: string[] = [];
 
-  // ── Count shell-positive keyword matches ──
-  for (const kw of SHELL_POSITIVE_KEYWORDS) {
-    if (lower.includes(kw)) {
-      matchedShellKeywords++;
-      score += 8;
+  // ════════════════════════════════════════════════════
+  // LAYER 1: Archetype detection (strongest signal)
+  // ════════════════════════════════════════════════════
+  let bestArchetype: Archetype | null = null;
+  let bestArchetypeScore = 0;
+
+  for (const arch of ARCHETYPES) {
+    let archScore = 0;
+    // Keyword matches
+    for (const kw of arch.keywords) {
+      if (lower.includes(kw)) archScore += 2;
+    }
+    // Pattern matches (stronger signal)
+    for (const pat of arch.patterns) {
+      if (pat.test(prompt)) archScore += 5;
+    }
+    if (archScore > bestArchetypeScore) {
+      bestArchetypeScore = archScore;
+      bestArchetype = arch;
     }
   }
 
-  // ── Count escape keyword matches ──
-  for (const kw of ESCAPE_KEYWORDS) {
-    if (lower.includes(kw)) {
+  if (bestArchetype && bestArchetypeScore >= 4) {
+    detectedArchetype = bestArchetype.id;
+
+    // ── Archetype conflict resolution ──
+    // If an LLM-required archetype matches but the prompt ALSO has strong
+    // shell-capable archetype signals, check for dual matches.
+    // Example: "metrics reporting panel for e-commerce" → ecommerce archetype,
+    // but "reporting panel" is clearly a dashboard/analytics use case.
+    if (!bestArchetype.shellCapable) {
+      // Check if a shell-capable archetype also has a reasonable match
+      let bestShellArch: Archetype | null = null;
+      let bestShellScore = 0;
+      for (const arch of ARCHETYPES) {
+        if (!arch.shellCapable) continue;
+        let s = 0;
+        for (const kw of arch.keywords) { if (lower.includes(kw)) s += 2; }
+        for (const pat of arch.patterns) { if (pat.test(prompt)) s += 5; }
+        if (s > bestShellScore) { bestShellScore = s; bestShellArch = arch; }
+      }
+      // If shell archetype has comparable score → prefer shell (it's the safer bet)
+      if (bestShellArch && bestShellScore >= bestArchetypeScore * 0.6) {
+        detectedArchetype = bestShellArch.id;
+        score = bestShellArch.confidence;
+        matchedShellKeywords += bestShellScore;
+        reasons.push(`archetype conflict: ${bestArchetype.id} vs ${bestShellArch.id} → shell wins (${bestShellScore} vs ${bestArchetypeScore})`);
+      } else {
+        score = 100 - bestArchetype.confidence;
+        matchedEscapeKeywords += bestArchetypeScore;
+        reasons.push(`archetype: ${bestArchetype.id} (LLM-required, confidence: ${bestArchetype.confidence})`);
+      }
+    } else {
+      score = bestArchetype.confidence;
+      matchedShellKeywords += bestArchetypeScore;
+      reasons.push(`archetype: ${bestArchetype.id} (shell-capable, confidence: ${bestArchetype.confidence})`);
+    }
+  }
+
+  // ════════════════════════════════════════════════════
+  // LAYER 2: Semantic signals (modifier — adjusts score)
+  // ════════════════════════════════════════════════════
+
+  // Management verbs → shell friendly
+  const mgmtMatch = prompt.match(new RegExp(MANAGEMENT_VERBS.source, 'gi'));
+  if (mgmtMatch) {
+    const count = mgmtMatch.length;
+    score += Math.min(count * 5, 15);
+    matchedShellKeywords += count;
+    if (count >= 2) reasons.push(`${count} management verbs`);
+  }
+
+  // Interactive verbs → LLM likely needed
+  const interactMatch = prompt.match(new RegExp(INTERACTIVE_VERBS.source, 'gi'));
+  if (interactMatch) {
+    const count = interactMatch.length;
+    score -= Math.min(count * 5, 15);
+    matchedEscapeKeywords += count;
+    if (count >= 2) reasons.push(`${count} interactive verbs`);
+  }
+
+  // Data entity mentions → strong shell signal
+  const entityMatch = prompt.match(new RegExp(DATA_ENTITY_PATTERN.source, 'gi'));
+  if (entityMatch) {
+    const uniqueEntities = new Set(entityMatch.map(e => e.toLowerCase()));
+    score += Math.min(uniqueEntities.size * 4, 12);
+    matchedShellKeywords += uniqueEntities.size;
+    if (uniqueEntities.size >= 2) reasons.push(`${uniqueEntities.size} data entities`);
+  }
+
+  // Custom UI patterns → moderate escape signal
+  for (const pat of CUSTOM_UI_PATTERNS) {
+    if (pat.test(prompt)) {
+      score -= 8;
       matchedEscapeKeywords++;
-      score -= 15;
     }
   }
 
-  // ── Check compound escape patterns (strong negative signal) ──
-  for (const pattern of ESCAPE_PATTERNS) {
+  // ════════════════════════════════════════════════════
+  // LAYER 3: Hard escape patterns (override — can force LLM)
+  // ════════════════════════════════════════════════════
+
+  let hardEscapeCount = 0;
+  for (const pattern of HARD_ESCAPE_PATTERNS) {
     if (pattern.test(prompt)) {
-      matchedEscapeKeywords++;
-      score -= 25;
-      reasons.push(`escape pattern: ${pattern.source}`);
+      hardEscapeCount++;
+      score -= 20;
+      if (hardEscapeCount <= 3) reasons.push(`hard escape: ${pattern.source.substring(0, 30)}`);
     }
   }
+  matchedEscapeKeywords += hardEscapeCount;
 
-  // ── Check shell-positive patterns ──
-  for (const pattern of SHELL_PATTERNS) {
-    if (pattern.test(prompt)) {
-      matchedShellKeywords++;
-      score += 10;
-    }
-  }
+  // ════════════════════════════════════════════════════
+  // CONTEXTUAL ADJUSTMENTS
+  // ════════════════════════════════════════════════════
 
-  // ── Very short/vague prompts: shells are safer than LLM guessing ──
-  const wordCount = prompt.trim().split(/\s+/).length;
+  // Very short prompts (≤5 words): shells are safer — LLM might hallucinate complexity
   if (wordCount <= 5) {
-    score += 15;
+    score += 10;
     reasons.push('short prompt — shell safer');
   }
 
-  // ── If prompt explicitly says "app" or "tool" + entity → shell is fine ──
+  // Very long prompts (>50 words): might describe complex custom app — slight LLM lean
+  if (wordCount > 50) {
+    score -= 5;
+  }
+
+  // "app/tool/system for X" pattern → management tool → shell-friendly
   if (/\b(?:app|tool|system|platform)\s+(?:for|to)\b/i.test(prompt)) {
-    score += 12;
+    score += 8;
+    matchedShellKeywords++;
     reasons.push('generic app/tool pattern');
   }
 
-  // ── Clamp score ──
+  // "build/create/make" + shell-specific noun
+  if (/\b(?:build|create|make)\s+(?:a\s+)?(?:\w+\s+){0,3}(?:dashboard|tracker|manager|planner|organizer|directory|registry|portal|scheduler)\b/i.test(prompt)) {
+    score += 10;
+    matchedShellKeywords++;
+    reasons.push('explicit shell-noun pattern');
+  }
+
+  // Conflict resolution: if both shell and escape signals are strong,
+  // the escape signals should win (better to be safe with LLM)
+  if (matchedShellKeywords > 0 && matchedEscapeKeywords > 0) {
+    if (hardEscapeCount >= 2) {
+      // Multiple hard escapes = definitely not a shell job
+      score = Math.min(score, 30);
+      reasons.push('multiple hard escapes override shell signals');
+    }
+  }
+
+  // ════════════════════════════════════════════════════
+  // FINAL DECISION
+  // ════════════════════════════════════════════════════
+
   score = Math.max(0, Math.min(100, score));
 
-  const recommendation: 'shell' | 'llm' = score >= SHELL_THRESHOLD ? 'shell' : 'llm';
+  const recommendation: 'shell' | 'llm' = score >= THRESHOLD ? 'shell' : 'llm';
 
   const reason = reasons.length > 0
     ? reasons.join('; ')
     : recommendation === 'shell'
-    ? `${matchedShellKeywords} shell keywords, ${matchedEscapeKeywords} escape keywords`
-    : `Low fitness: ${matchedEscapeKeywords} escape keywords outweigh ${matchedShellKeywords} shell keywords`;
+    ? `${matchedShellKeywords} shell signals, ${matchedEscapeKeywords} escape signals`
+    : `Low fitness: ${matchedEscapeKeywords} escape signals outweigh ${matchedShellKeywords} shell signals`;
 
-  logger.info(`[FITNESS] Score: ${score}/100 → ${recommendation.toUpperCase()} | Shell KW: ${matchedShellKeywords} | Escape KW: ${matchedEscapeKeywords} | ${reason}`);
+  logger.info(`[FITNESS] Score: ${score}/100 → ${recommendation.toUpperCase()} | Archetype: ${detectedArchetype || 'none'} | Shell: ${matchedShellKeywords} | Escape: ${matchedEscapeKeywords} | ${reason}`);
 
   return {
     score,
@@ -213,5 +421,6 @@ export function checkShellFitness(prompt: string): FitnessResult {
     reason,
     matchedShellKeywords,
     matchedEscapeKeywords,
+    detectedArchetype,
   };
 }
