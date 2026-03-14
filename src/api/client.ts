@@ -258,8 +258,8 @@ export class SeedstrClient {
     const fileBuffer = readFileSync(filePath);
     const base64Content = fileBuffer.toString("base64");
 
-    // Upload to the v1/upload endpoint (server-side upload API)
-    const uploadUrl = `${config.seedstrApiUrl}/upload`;
+    // Upload to the v2/upload endpoint (v1 is deprecated — returns 410)
+    const uploadUrl = `${config.seedstrApiUrlV2}/upload`;
     
     const response = await fetch(uploadUrl, {
       method: "POST",

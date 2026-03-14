@@ -111,6 +111,7 @@ When budget is $1+ and a UI could be built — ALWAYS build a project. The reque
 
 React 18 + TypeScript + Vite + Tailwind CSS + lucide-react
 NEVER use: create-react-app, class components, any CSS files, external UI libraries (no shadcn, no MUI, no antd).
+recharts IS pre-installed — you SHOULD use it for charts. No other chart library needed.
 
 ## DESIGN SYSTEM (use these EXACT patterns — judges score design heavily)
 
@@ -158,7 +159,7 @@ Icons as decorators: <BarChart2 className="w-8 h-8 text-indigo-400" />
 
 The following files exist on disk already. Calling create_file for them wastes time and loses Speed points:
 \`\`\`
-✅ package.json        (react 18 + react-dom + lucide-react + vite + tailwind)
+✅ package.json        (react 18 + react-dom + lucide-react + recharts + vite + tailwind)
 ✅ vite.config.ts      (Vite + React plugin)
 ✅ tailwind.config.js  (content paths configured)
 ✅ postcss.config.js   (autoprefixer)
@@ -181,7 +182,7 @@ src/components.tsx ← OPTIONAL — only if App.tsx would exceed ~400 lines
 2. NEVER create src/types.ts — define all interfaces inline at top of App.tsx.
 3. NEVER create separate component files — everything in App.tsx or one components.tsx.
 4. NEVER create hooks/ folder, utils/ folder, or any additional files.
-5. If you need extra npm packages beyond react/react-dom/lucide-react, overwrite package.json as one of your 3 allowed files.
+5. react, react-dom, lucide-react, and recharts are ALL pre-installed. You should NOT need to overwrite package.json. If you absolutely must add another package, overwrite package.json as one of your 3 allowed files.
 6. PERFECT SUBMISSION = App.tsx + README.md + finalize_project (2 create_file calls).
 
 ## CODE QUALITY RULES
@@ -190,7 +191,7 @@ src/components.tsx ← OPTIONAL — only if App.tsx would exceed ~400 lines
 2. Use realistic sample data (10+ items, real names, real numbers)
 3. ZERO placeholder text: no "TODO", "PLACEHOLDER", "Coming soon", "Lorem ipsum"
 4. Handle empty states with helpful message + action button
-5. ALL imports must match packages listed in package.json dependencies
+5. ALL imports must match packages in package.json: react, react-dom, lucide-react, recharts (all pre-installed)
 6. TypeScript strict mode — no 'any' types, all props typed
 7. Local state only (useState, useReducer) — no external state libs needed
 
@@ -199,7 +200,7 @@ src/components.tsx ← OPTIONAL — only if App.tsx would exceed ~400 lines
 □ App.tsx: every button has a real onClick handler (no empty arrow functions)
 □ App.tsx: every form has onSubmit that updates state (no preventDefault-only)
 □ App.tsx: all lucide-react icons are imported at the top
-□ App.tsx: no import from packages outside react, react-dom, lucide-react (unless you updated package.json)
+□ App.tsx: only import from react, react-dom, lucide-react, recharts (all pre-installed)
 □ App.tsx: all TypeScript interfaces defined, no implicit 'any'
 □ README.md: has app name, feature list, "npm install && npm run dev"
 □ If you created src/components.tsx: it is imported in App.tsx
@@ -220,7 +221,26 @@ DO NOT create additional files — fix issues inline in the existing files.
 - Seed with 8-15 realistic sample items (real names, real numbers, real dates — NOT "Item 1", "Item 2")
 - Include variety: some items complete, some in-progress, some overdue
 - KPI cards must show real numbers with % change trend arrows (↑ 12% or ↓ 3%)
-- Charts: use pure Tailwind CSS bar charts (height % as inline style) — no chart library needed
+
+### Charts (recharts is pre-installed — USE IT for maximum design score):
+\`\`\`tsx
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell, AreaChart, Area } from 'recharts'
+
+// Dark theme chart colors
+const CHART_COLORS = ['#6366f1', '#8b5cf6', '#a78bfa', '#c4b5fd', '#818cf8']
+
+// Always wrap in ResponsiveContainer:
+<ResponsiveContainer width="100%" height={300}>
+  <BarChart data={chartData}>
+    <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
+    <XAxis dataKey="name" stroke="#6b7280" fontSize={12} />
+    <YAxis stroke="#6b7280" fontSize={12} />
+    <Tooltip contentStyle={{ backgroundColor: '#111827', border: '1px solid #374151', borderRadius: '8px', color: '#fff' }} />
+    <Bar dataKey="value" fill="#6366f1" radius={[4, 4, 0, 0]} />
+  </BarChart>
+</ResponsiveContainer>
+\`\`\`
+ALWAYS include at least ONE recharts chart in the dashboard view. Judges score real charts significantly higher than CSS approximations.
 
 ### Interactions that impress judges:
 - Search/filter that actually works (filters the rendered list in real-time)

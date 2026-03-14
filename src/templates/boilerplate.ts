@@ -14,7 +14,7 @@ export function getBoilerplateFiles(): BoilerplateFile[] {
     {
       path: 'package.json',
       content: JSON.stringify({
-        name: 'forge-app',
+        name: 'aerofyta-app',
         private: true,
         version: '1.0.0',
         type: 'module',
@@ -27,6 +27,7 @@ export function getBoilerplateFiles(): BoilerplateFile[] {
           react: '^18.3.1',
           'react-dom': '^18.3.1',
           'lucide-react': '^0.460.0',
+          recharts: '^2.15.0',
         },
         devDependencies: {
           '@types/react': '^18.3.12',
@@ -115,6 +116,25 @@ createRoot(document.getElementById('root')!).render(<StrictMode><App /></StrictM
       content: `@tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer utilities {
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .animate-fade-in {
+    animation: fadeIn 0.4s ease-out forwards;
+  }
+  .animate-fade-in-delay-1 { animation: fadeIn 0.4s ease-out 0.1s forwards; opacity: 0; }
+  .animate-fade-in-delay-2 { animation: fadeIn 0.4s ease-out 0.2s forwards; opacity: 0; }
+  .animate-fade-in-delay-3 { animation: fadeIn 0.4s ease-out 0.3s forwards; opacity: 0; }
+}
+
+/* Smooth scrollbar */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #374151; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #4b5563; }
 `,
     },
   ];
