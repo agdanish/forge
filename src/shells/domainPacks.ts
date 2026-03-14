@@ -257,8 +257,8 @@ const creator: DomainPack = {
 const PACKS: Record<string, DomainPack> = { startup, nonprofit, healthcare, education, operations, creator };
 
 const DOMAIN_PACK_KEYWORDS: Record<string, string[]> = {
-  startup: ['startup', 'saas', 'launch', 'growth', 'mrr', 'arr', 'churn', 'conversion', 'pipeline', 'onboarding', 'b2b', 'product-led', 'go-to-market', 'fundrais', 'investor', 'venture', 'series'],
-  nonprofit: ['nonprofit', 'non-profit', 'charity', 'volunteer', 'donation', 'social impact', 'community', 'ngo', 'mission', 'humanitarian', 'advocacy', 'philanthropy', 'foundation', 'grant', 'outreach', 'food bank', 'shelter', 'cleanup'],
+  startup: ['startup', 'saas', 'launch', 'growth', 'mrr', 'arr', 'churn', 'conversion', 'b2b', 'product-led', 'go-to-market', 'fundrais', 'investor', 'venture', 'series'],
+  nonprofit: ['nonprofit', 'non-profit', 'charity', 'volunteer', 'donation', 'donor', 'social impact', 'community', 'ngo', 'mission', 'humanitarian', 'advocacy', 'philanthropy', 'foundation', 'grant', 'outreach', 'food bank', 'shelter', 'cleanup'],
   healthcare: ['health', 'medical', 'patient', 'clinical', 'hospital', 'wellness', 'therapy', 'doctor', 'nurse', 'care plan', 'treatment', 'diagnosis', 'telehealth', 'pharmacy', 'fitness', 'workout', 'nutrition', 'mental health'],
   education: ['education', 'learning', 'course', 'student', 'teacher', 'lesson', 'curriculum', 'school', 'university', 'tutoring', 'training', 'quiz', 'exam', 'enrollment', 'grading', 'classroom', 'academic'],
   operations: ['operations', 'admin', 'workflow', 'compliance', 'inventory', 'procurement', 'facilities', 'hr', 'human resources', 'ticketing', 'helpdesk', 'it ', 'maintenance', 'logistics', 'supply chain', 'warehouse'],
