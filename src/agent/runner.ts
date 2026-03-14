@@ -72,8 +72,30 @@ Read the job prompt carefully. Identify:
 5. **DOMAIN-SPECIFIC FEATURES** — what makes this app unique to its domain?
 
 Then pick the matching scaffold from your hints below and build confidently.
-If the prompt is vague or unusual — build a MANAGEMENT TOOL for the subject.
-Example: "something for cats" → Cat Care Manager (cat profiles, health records, feeding logs, vet appointments).
+
+## HANDLING TOUGH / CREATIVE / UNUSUAL PROMPTS
+
+If the prompt doesn't match any standard archetype — DO NOT PANIC. Apply this universal strategy:
+
+**Rule: EVERY prompt can become a functional app.** Decompose ANY subject into these 4 universal UI patterns:
+1. **COLLECTION** — the subject has items to browse/list/filter (grid + search + category tabs)
+2. **DETAIL** — each item has attributes to view/edit (detail panel or modal with form fields)
+3. **DASHBOARD** — aggregate stats about the collection (KPI cards + bar chart + trend arrows)
+4. **ACTIONS** — the user can create, edit, delete, favorite, sort, or change status of items
+
+Examples of reframing tough prompts:
+- "Build a DNA sequence analyzer" → Collection of sequences + detail view with stats + dashboard of composition + actions: add/compare/export
+- "Create a virtual garden simulator" → Grid of plant plots + plant detail (species, growth, water) + garden stats dashboard + actions: plant/water/harvest
+- "Make a music composition tool" → Track list collection + track editor detail + project stats + actions: add track/change tempo/add notes
+- "Build a space mission planner" → Mission list + mission detail (crew, destination, timeline) + mission control dashboard + actions: create/edit/launch
+- "Create something for beekeepers" → Hive collection + hive inspection detail + colony health dashboard + actions: add inspection/log harvest/alert
+- "Build an astrology app" → Zodiac/chart collection + birth chart detail view + compatibility dashboard + actions: generate chart/compare/save
+
+**The pattern is ALWAYS the same:** List → Detail → Stats → CRUD. The domain just changes the labels, icons, and seed data. If you can name the entities, you can build the app.
+
+**For truly bizarre prompts** (abstract, poetic, nonsensical): Extract the NOUN and build a management/tracker/dashboard for it. "Make vibes" → Vibe Tracker (mood entries, vibe categories, daily trends). "Chaos engine" → Chaos Dashboard (event log, randomizer, entropy metrics). There is no prompt that cannot become a functional CRUD app.
+
+**CRITICAL: Never output an empty shell or placeholder app.** A fully functional management tool for ANY subject scores higher than a half-built "creative interpretation." Functionality ≥5/10 is the qualifying gate. Ship working CRUD with real data, not ambitious broken features.
 
 ## DECISION: TEXT vs PROJECT
 
@@ -511,6 +533,32 @@ export class AgentRunner extends EventEmitter implements TypedEventEmitter {
     return errors;
   }
 
+  // ─── Files → ZIP helper (shared by shell, composer, and fallback paths) ──
+
+  private async filesToZip(files: { path: string; content: string }[], label: string): Promise<{ zipPath: string; projectDir: string; fileNames: string[] }> {
+    const tmpDir = path.join(process.cwd(), `.tmp-${label}-${Date.now()}`);
+    await fs.mkdir(tmpDir, { recursive: true });
+
+    for (const file of files) {
+      const filePath = path.join(tmpDir, file.path);
+      await fs.mkdir(path.dirname(filePath), { recursive: true });
+      await fs.writeFile(filePath, file.content, 'utf-8');
+    }
+
+    const zipPath = tmpDir + '.zip';
+    await new Promise<void>((resolve, reject) => {
+      const output = createWriteStream(zipPath);
+      const archive = archiver('zip', { zlib: { level: 9 } });
+      output.on('close', () => resolve());
+      archive.on('error', (err: Error) => reject(err));
+      archive.pipe(output);
+      archive.directory(tmpDir, false);
+      archive.finalize();
+    });
+
+    return { zipPath, projectDir: tmpDir, fileNames: files.map(f => f.path) };
+  }
+
   // ─── Shell Compilation → ZIP helper ─────────────────────────────────────
 
   private async shellCompileToZip(prompt: string): Promise<{ zipPath: string; projectDir: string; files: string[]; responseText: string; fitnessRejected?: boolean } | null> {
@@ -529,27 +577,7 @@ export class AgentRunner extends EventEmitter implements TypedEventEmitter {
       }
 
       // Write files to temp directory and create ZIP
-      const tmpDir = path.join(process.cwd(), '.tmp-shell-' + Date.now());
-      await fs.mkdir(tmpDir, { recursive: true });
-
-      for (const file of shellResult.files) {
-        const filePath = path.join(tmpDir, file.path);
-        await fs.mkdir(path.dirname(filePath), { recursive: true });
-        await fs.writeFile(filePath, file.content, 'utf-8');
-      }
-
-      const zipPath = tmpDir + '.zip';
-      await new Promise<void>((resolve, reject) => {
-        const output = createWriteStream(zipPath);
-        const archive = archiver('zip', { zlib: { level: 9 } });
-        output.on('close', () => resolve());
-        archive.on('error', (err: Error) => reject(err));
-        archive.pipe(output);
-        archive.directory(tmpDir, false);
-        archive.finalize();
-      });
-
-      const fileNames = shellResult.files.map(f => f.path);
+      const { zipPath, projectDir: tmpDir, fileNames } = await this.filesToZip(shellResult.files, 'shell');
       const responseText = `${shellResult.spec.appName} — ${shellResult.spec.tagline}\n\n✨ Features: ${shellResult.spec.views.join(', ')}, ${shellResult.spec.categories.slice(0, 3).join(', ')} categories, KPI dashboard\n🛠️ Stack: React 18 + TypeScript + Tailwind CSS + Vite + lucide-react\n🚀 Setup: npm install && npm run dev`;
 
       logger.info(`Shell compilation complete: ${shellResult.spec.appName} (${shellResult.shell} shell, ${fileNames.length} files)`);
@@ -639,28 +667,12 @@ export class AgentRunner extends EventEmitter implements TypedEventEmitter {
               const fallbackResult = renderFromSpec(fallbackSpec);
               logger.info(`Deterministic fallback: ${fallbackSpec.appName} (${fallbackSpec.shell} shell)`);
 
-              const tmpDir2 = path.join(process.cwd(), '.tmp-shell-fallback-' + Date.now());
-              await fs.mkdir(tmpDir2, { recursive: true });
-              for (const file of fallbackResult.files) {
-                const fp = path.join(tmpDir2, file.path);
-                await fs.mkdir(path.dirname(fp), { recursive: true });
-                await fs.writeFile(fp, file.content, 'utf-8');
-              }
-              const zipPath2 = tmpDir2 + '.zip';
-              await new Promise<void>((resolve, reject) => {
-                const output = createWriteStream(zipPath2);
-                const archive = archiver('zip', { zlib: { level: 9 } });
-                output.on('close', () => resolve());
-                archive.on('error', (err: Error) => reject(err));
-                archive.pipe(output);
-                archive.directory(tmpDir2, false);
-                archive.finalize();
-              });
-              const val2 = await validateZip(zipPath2, fallbackResult.files.map(f => f.path));
+              const { zipPath: zipPath2, projectDir: tmpDir2, fileNames: fbFileNames } = await this.filesToZip(fallbackResult.files, 'fallback');
+              const val2 = await validateZip(zipPath2, fbFileNames);
               if (val2.valid) {
                 zipPath = zipPath2;
                 projectDir = tmpDir2;
-                projectFiles = fallbackResult.files.map(f => f.path);
+                projectFiles = fbFileNames;
                 responseText = `${fallbackSpec.appName} — ${fallbackSpec.tagline}\n\n✨ Features: ${fallbackSpec.views.join(', ')}, ${fallbackSpec.categories.slice(0, 3).join(', ')} categories\n🛠️ Stack: React 18 + TypeScript + Tailwind CSS + Vite\n🚀 Setup: npm install && npm run dev`;
                 usedShellCompiler = true;
                 logger.info('Deterministic fallback succeeded — skipping LLM tool-call path');
@@ -683,28 +695,12 @@ export class AgentRunner extends EventEmitter implements TypedEventEmitter {
           const fallbackSpec = generateFallbackSpec(job.prompt);
           const fallbackResult = renderFromSpec(fallbackSpec);
 
-          const tmpDir2 = path.join(process.cwd(), '.tmp-shell-fallback-' + Date.now());
-          await fs.mkdir(tmpDir2, { recursive: true });
-          for (const file of fallbackResult.files) {
-            const fp = path.join(tmpDir2, file.path);
-            await fs.mkdir(path.dirname(fp), { recursive: true });
-            await fs.writeFile(fp, file.content, 'utf-8');
-          }
-          const zipPath2 = tmpDir2 + '.zip';
-          await new Promise<void>((resolve, reject) => {
-            const output = createWriteStream(zipPath2);
-            const archive = archiver('zip', { zlib: { level: 9 } });
-            output.on('close', () => resolve());
-            archive.on('error', (err: Error) => reject(err));
-            archive.pipe(output);
-            archive.directory(tmpDir2, false);
-            archive.finalize();
-          });
-          const val2 = await validateZip(zipPath2, fallbackResult.files.map(f => f.path));
+          const { zipPath: zipPath2, projectDir: tmpDir2, fileNames: fbFileNames } = await this.filesToZip(fallbackResult.files, 'fallback');
+          const val2 = await validateZip(zipPath2, fbFileNames);
           if (val2.valid) {
             zipPath = zipPath2;
             projectDir = tmpDir2;
-            projectFiles = fallbackResult.files.map(f => f.path);
+            projectFiles = fbFileNames;
             responseText = `${fallbackSpec.appName} — ${fallbackSpec.tagline}\n\n✨ Features: ${fallbackSpec.views.join(', ')}, ${fallbackSpec.categories.slice(0, 3).join(', ')} categories\n🛠️ Stack: React 18 + TypeScript + Tailwind CSS + Vite\n🚀 Setup: npm install && npm run dev`;
             usedShellCompiler = true;
             logger.info(`Deterministic fallback succeeded: ${fallbackSpec.appName} (${fallbackSpec.shell})`);

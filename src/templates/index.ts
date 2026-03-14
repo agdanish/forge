@@ -209,23 +209,46 @@ DESIGN: Clean and professional — trust-inspiring white cards, emerald accents 
 ];
 
 const DEFAULT_HINT = `ARCHETYPE: Unknown/Custom — build the most complete, functional interpretation possible.
-STRATEGY for any unknown prompt:
-1. Identify the PRIMARY user action (what does the user DO in this app?)
-2. Build UI around that action — make it the center of the screen
-3. Add supporting views: list/history, settings/config, stats/summary
-4. Always include: search, add-new, and some form of data visualization
-5. Seed with 10+ realistic data items immediately (never show empty app)
 
-SAFE DEFAULT STRUCTURE (10 files):
-- Header: app name (gradient text) + primary CTA button + search
-- Main area: card grid OR list view (toggle between them)
-- Side panel: detail view OR stats summary
-- Add/Edit modal with proper form validation
-- Empty state + loading skeleton (animate-pulse)
+WINNING STRATEGY for unknown prompts (this is what separates $10K winners from also-rans):
 
-DESIGN FALLBACK: Dark premium theme (bg-gray-950), indigo buttons, gray-900 cards.
-When uncertain what to build — build a MANAGEMENT TOOL for the subject matter.
-Example: "Build something for cats" → Cat Management app (track cats, health records, feeding schedule).`;
+Step 1: Extract the CORE NOUN from the prompt. Every prompt has one.
+  "Build a cosmic ray detector" → cosmic rays. "Make something for librarians" → books/library.
+  "Create a vibe engine" → vibes. Even abstract prompts have a subject.
+
+Step 2: Build a 4-panel management app for that noun:
+  A) COLLECTION VIEW — grid/list of items with search bar + category filter tabs + sort dropdown
+  B) DETAIL PANEL — click item → side panel with all attributes, edit form, status actions
+  C) DASHBOARD — 4 KPI cards (total count, active %, top category, trend) + bar chart breakdown
+  D) CRUD — Add New modal (5+ fields), inline edit, delete with confirmation, status toggle
+
+Step 3: Seed with 12+ REALISTIC items using DOMAIN-SPECIFIC terminology.
+  NOT "Item 1, Item 2" — use real names, dates, categories from the domain.
+  A beekeeping app: "Spring Inspection - Hive #3", "Queen spotted, 8 frames brood".
+  A space app: "Artemis IV", "Mars orbit insertion", "Crew: 4, Duration: 687 days".
+
+Step 4: Add 3 domain-specific features that prove you UNDERSTOOD the prompt:
+  For cooking: ingredient checklist, serving size adjuster, cook timer
+  For music: BPM display, key signature selector, waveform visualization (CSS)
+  For fitness: rep counter, rest timer, personal record badges
+
+FULL STRUCTURE (keep to 2-3 create_file calls):
+- Collapsible sidebar: nav links with lucide icons + active highlight + user card at bottom
+- Top bar: search (⌘K hint) + "Add New" CTA button + notification bell
+- Main: dashboard view (default) | list view | board view (tab switch between them)
+- 4 KPI cards with trend arrows (↑12% green / ↓3% red)
+- Sortable data table OR card grid with status badges + priority colors
+- Detail side panel on click: all fields + progress bar + action buttons
+- Add/Edit modal: 5+ typed form fields + category dropdown + priority select
+- Working search that filters in real-time
+- Category filter tabs (All + 4-6 domain categories)
+- Toast notification on create/edit/delete
+
+DESIGN: Dark premium (bg-gray-950), gradient heading text (indigo→purple), gray-900 cards, indigo-600 primary buttons.
+ICONS: Use domain-relevant lucide icons. Every nav item and KPI card gets an icon.
+
+CRITICAL: Ship a WORKING app with real interactions. A polished management tool scores 7-8/10.
+An ambitious but broken creative interpretation scores 3/10. FUNCTIONALITY WINS.`;
 
 /**
  * Get the most relevant scaffold hint for a given job prompt.
