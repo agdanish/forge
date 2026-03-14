@@ -425,10 +425,10 @@ export class AgentRunner extends EventEmitter implements TypedEventEmitter {
     }
 
     if (this.running) {
-      // UPGRADE 2: Poll every 5s when no WebSocket, 30s when WebSocket active
+      // Poll every 2s without WebSocket (speed is a judging criterion), 30s with WS
       const interval = this.wsConnected
         ? config.pollInterval * 1000       // WebSocket active: normal interval (30s)
-        : Math.min(config.pollInterval * 1000, 5000); // No WebSocket: max 5s
+        : 2000;                            // No WebSocket: 2s aggressive polling
       this.pollTimer = setTimeout(() => this.poll(), interval);
     }
   }
