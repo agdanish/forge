@@ -366,33 +366,10 @@ export class LLMClient {
           continue;
         }
         
-        // Not retryable or exhausted retries - try fallback if tools were enabled
-        if (hasTools && retryConfig.fallbackNoTools && attempt >= retryConfig.maxRetries && isRetryableError(error)) {
-          logger.warn(
-            `Exhausted ${retryConfig.maxRetries} retries for tool calling, attempting fallback without tools`
-          );
-          
-          try {
-            // Reset and try without tools
-            activeProjectBuilder = null;
-            const fallbackResult = await this.executeGeneration({
-              prompt: prompt + "\n\n[Note: Please provide a text response only, as tool execution is temporarily unavailable.]",
-              systemPrompt,
-              maxTokens,
-              temperature,
-              tools: undefined,
-            });
-            
-            logger.info("Fallback generation without tools succeeded");
-            return fallbackResult;
-          } catch (fallbackError) {
-            logger.error("Fallback generation also failed:", fallbackError);
-            // Throw the original error as it's more informative
-            throw lastError;
-          }
-        }
-        
-        // Re-throw non-retryable errors immediately
+        // Not retryable or exhausted retries — throw immediately.
+        // Caller (runner.ts) handles fallback to emergency ZIP.
+        // The old fallback-without-tools path was broken: it returned text-only
+        // (no project build) which was useless for hackathon submissions.
         throw error;
       }
     }

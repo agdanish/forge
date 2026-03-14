@@ -134,12 +134,20 @@ NEVER use: create-react-app, class components, any CSS files, external UI librar
 - Sidebar layout: className="flex h-screen" with aside + main
 - KPI card: className="bg-gray-900 border border-gray-800 rounded-2xl p-6" containing icon, value, label, and trend
 
+### Glassmorphism & Premium Effects
+- Glassmorphic panels: className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl"
+- Glowing accent borders: className="border border-indigo-500/20 shadow-[0_0_15px_rgba(99,102,241,0.15)]"
+- Subtle gradient mesh background on hero sections: className="bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-indigo-900/20 via-gray-950 to-gray-950"
+
 ### Animations & Polish
-- Hover effects on ALL interactive elements (hover:bg-*, hover:scale-105, hover:shadow-lg)
-- Smooth transitions: transition-all duration-200 on buttons and cards
+- Hover effects on ALL interactive elements (hover:bg-*, hover:scale-[1.02], hover:shadow-lg)
+- Smooth transitions: transition-all duration-300 on buttons and cards
+- Card hover glow: hover:border-indigo-500/30 hover:shadow-[0_0_20px_rgba(99,102,241,0.1)]
 - Loading states: animate-pulse for skeleton loaders
 - Focus rings: focus:ring-2 focus:ring-indigo-500 on all inputs
 - Empty states: centered illustration (use a lucide icon, large, text-gray-700) + message + action button
+- Stagger grid items with animation delay: style={{ animationDelay: \`\${index * 50}ms\` }}
+- Add subtle entrance animation: className="animate-in fade-in slide-in-from-bottom-2 duration-300"
 
 ### Icon Usage (always use lucide-react)
 import { Search, Plus, Trash2, Edit, ChevronRight, BarChart2, Users, Settings, Bell, X, Check, AlertCircle, Home, Menu } from 'lucide-react';
@@ -716,7 +724,7 @@ export class AgentRunner extends EventEmitter implements TypedEventEmitter {
       // ── FALLBACK PATH: LLM Tool-Call Generation (only if deterministic paths all failed) ──
       if (!usedShellCompiler) {
         // ── TIME BUDGET CHECK: Skip LLM if running low ──
-        const timeBudget = checkTimeBudget(t0 + timings.shellStart);
+        const timeBudget = checkTimeBudget(t0);
         if (timeBudget.isEmergency) {
           logger.warn('[POLICY] Emergency time budget — using emergency ZIP instead of LLM');
           const emergency = await generateEmergencyZip(job.prompt);
@@ -789,15 +797,21 @@ export class AgentRunner extends EventEmitter implements TypedEventEmitter {
         } // close time-budget if (!usedShellCompiler)
       }
 
-      // ── Stage 2: Upload with retry ──
+      // ── Stage 2: Upload with retry (time-budget aware) ──
       timings.uploadStart = Date.now() - t0;
       let uploadedFile: import("../types/index.js").FileAttachment;
       try {
         this.emitEvent({ type: "files_uploading", job, fileCount: 1 });
+        // Check time budget before upload — reduce retries if running low
+        const uploadTimeBudget = checkTimeBudget(t0);
+        const uploadRetries = uploadTimeBudget.shouldSkipLLM ? 1 : 3;
+        if (uploadTimeBudget.shouldSkipLLM) {
+          logger.warn(`[POLICY] Low time budget (${uploadTimeBudget.remainingMs}ms remaining) — reducing upload retries to ${uploadRetries}`);
+        }
         uploadedFile = await this.retryAsync(
           () => this.client.uploadFile(zipPath),
           'File upload',
-          3
+          uploadRetries
         );
         this.emitEvent({ type: "files_uploaded", job, files: [uploadedFile] });
       } catch (uploadError) {

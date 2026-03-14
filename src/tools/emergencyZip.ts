@@ -127,7 +127,71 @@ function extractDomain(prompt: string): string {
   return "Workspace";
 }
 
+function generateSeedData(domain: string, prompt: string): { items: string; categories: string } {
+  const domainSeeds: Record<string, { items: string; categories: string }> = {
+    'Task Management': {
+      items: `[
+  { id: 1, name: 'Redesign Landing Page', description: 'Update hero section and CTAs for Q2 campaign', status: 'active', priority: 'high', category: 'Design', value: 4500, date: '2024-03-15', assignee: 'Sarah Chen' },
+  { id: 2, name: 'API Rate Limiting', description: 'Implement rate limiting for public endpoints', status: 'completed', priority: 'high', category: 'Backend', value: 3200, date: '2024-03-12', assignee: 'James Wilson' },
+  { id: 3, name: 'User Onboarding Flow', description: 'Create step-by-step guided tour for new users', status: 'active', priority: 'high', category: 'Frontend', value: 5800, date: '2024-03-18', assignee: 'Maria Garcia' },
+  { id: 4, name: 'Performance Audit', description: 'Lighthouse score improvement to 90+', status: 'pending', priority: 'medium', category: 'DevOps', value: 2100, date: '2024-03-20', assignee: 'Alex Kim' },
+  { id: 5, name: 'Mobile Responsive Fixes', description: 'Fix layout issues on tablet and phone', status: 'active', priority: 'medium', category: 'Frontend', value: 1800, date: '2024-03-10', assignee: 'David Brown' },
+  { id: 6, name: 'Database Migration', description: 'Migrate from MySQL to PostgreSQL', status: 'pending', priority: 'medium', category: 'Backend', value: 7500, date: '2024-03-25', assignee: 'Lisa Zhang' },
+  { id: 7, name: 'Security Headers', description: 'Add CSP, HSTS, X-Frame-Options headers', status: 'active', priority: 'high', category: 'Security', value: 900, date: '2024-03-08', assignee: 'Tom Anderson' },
+  { id: 8, name: 'Analytics Dashboard', description: 'Build internal metrics dashboard with charts', status: 'completed', priority: 'high', category: 'Frontend', value: 6200, date: '2024-03-05', assignee: 'Sarah Chen' },
+  { id: 9, name: 'CI/CD Pipeline', description: 'Set up automated testing and deployment', status: 'pending', priority: 'low', category: 'DevOps', value: 4100, date: '2024-03-28', assignee: 'James Wilson' },
+  { id: 10, name: 'Accessibility Audit', description: 'WCAG 2.1 AA compliance check and fixes', status: 'active', priority: 'medium', category: 'Design', value: 3400, date: '2024-03-22', assignee: 'Maria Garcia' },
+  { id: 11, name: 'Email Templates', description: 'Design transactional email templates', status: 'archived', priority: 'low', category: 'Design', value: 1200, date: '2024-02-28', assignee: 'David Brown' },
+  { id: 12, name: 'Load Testing', description: 'Stress test API under 10k concurrent users', status: 'completed', priority: 'high', category: 'DevOps', value: 2800, date: '2024-03-02', assignee: 'Alex Kim' },
+]`,
+      categories: `['All', 'Design', 'Frontend', 'Backend', 'DevOps', 'Security']`,
+    },
+    'Fitness': {
+      items: `[
+  { id: 1, name: 'Morning HIIT Session', description: '30-min high-intensity interval training', status: 'completed', priority: 'high', category: 'Cardio', value: 450, date: '2024-03-15', assignee: 'Coach Mike' },
+  { id: 2, name: 'Upper Body Strength', description: 'Bench press, rows, shoulder press circuit', status: 'active', priority: 'high', category: 'Strength', value: 380, date: '2024-03-14', assignee: 'Coach Sarah' },
+  { id: 3, name: 'Yoga Flow', description: '60-min vinyasa flow for flexibility', status: 'pending', priority: 'medium', category: 'Flexibility', value: 200, date: '2024-03-16', assignee: 'Coach Lily' },
+  { id: 4, name: '5K Training Run', description: 'Tempo run at 5:30/km pace', status: 'active', priority: 'high', category: 'Cardio', value: 520, date: '2024-03-13', assignee: 'Coach Mike' },
+  { id: 5, name: 'Leg Day', description: 'Squats, deadlifts, lunges, calf raises', status: 'pending', priority: 'high', category: 'Strength', value: 410, date: '2024-03-17', assignee: 'Coach Sarah' },
+  { id: 6, name: 'Swimming Laps', description: '40 laps freestyle for endurance', status: 'completed', priority: 'medium', category: 'Cardio', value: 350, date: '2024-03-12', assignee: 'Coach Jake' },
+  { id: 7, name: 'Core Stability', description: 'Planks, Russian twists, leg raises', status: 'active', priority: 'medium', category: 'Core', value: 280, date: '2024-03-15', assignee: 'Coach Lily' },
+  { id: 8, name: 'Rest & Recovery', description: 'Foam rolling and stretching session', status: 'completed', priority: 'low', category: 'Recovery', value: 100, date: '2024-03-11', assignee: 'Coach Jake' },
+  { id: 9, name: 'Boxing Workout', description: 'Heavy bag rounds and shadow boxing', status: 'pending', priority: 'medium', category: 'Cardio', value: 480, date: '2024-03-18', assignee: 'Coach Mike' },
+  { id: 10, name: 'Protein Meal Prep', description: 'Prep 5 days of high-protein meals', status: 'active', priority: 'high', category: 'Nutrition', value: 150, date: '2024-03-14', assignee: 'Nutritionist Amy' },
+  { id: 11, name: 'Progress Photos', description: 'Monthly body composition check', status: 'archived', priority: 'low', category: 'Tracking', value: 0, date: '2024-03-01', assignee: 'Coach Sarah' },
+  { id: 12, name: 'Mobility Routine', description: 'Hip openers, shoulder mobility, ankle work', status: 'active', priority: 'medium', category: 'Flexibility', value: 180, date: '2024-03-15', assignee: 'Coach Lily' },
+]`,
+      categories: `['All', 'Cardio', 'Strength', 'Flexibility', 'Core', 'Recovery', 'Nutrition', 'Tracking']`,
+    },
+  };
+
+  // Use domain-specific seed data if available, otherwise generate generic but contextual data
+  if (domainSeeds[domain]) {
+    return domainSeeds[domain];
+  }
+
+  // Default: business/workspace seed data that works for any domain
+  return {
+    items: `[
+  { id: 1, name: 'Strategic Planning Review', description: 'Q2 strategic objectives and resource allocation', status: 'active', priority: 'high', category: 'Strategy', value: 45000, date: '2024-03-15', assignee: 'Sarah Chen' },
+  { id: 2, name: 'Market Analysis Report', description: 'Competitive landscape and market trends', status: 'completed', priority: 'high', category: 'Research', value: 28000, date: '2024-03-12', assignee: 'James Wilson' },
+  { id: 3, name: 'Product Launch Campaign', description: 'Multi-channel marketing for new release', status: 'active', priority: 'high', category: 'Marketing', value: 67000, date: '2024-03-18', assignee: 'Maria Garcia' },
+  { id: 4, name: 'Customer Feedback Integration', description: 'Incorporate Q1 survey results into roadmap', status: 'pending', priority: 'medium', category: 'Product', value: 15000, date: '2024-03-20', assignee: 'Alex Kim' },
+  { id: 5, name: 'Budget Optimization', description: 'Reduce operational costs by 15% this quarter', status: 'active', priority: 'medium', category: 'Finance', value: 120000, date: '2024-03-10', assignee: 'David Brown' },
+  { id: 6, name: 'Team Training Program', description: 'Upskill development team on new technologies', status: 'pending', priority: 'medium', category: 'HR', value: 32000, date: '2024-03-25', assignee: 'Lisa Zhang' },
+  { id: 7, name: 'Infrastructure Upgrade', description: 'Migrate services to cloud-native architecture', status: 'active', priority: 'high', category: 'Engineering', value: 95000, date: '2024-03-08', assignee: 'Tom Anderson' },
+  { id: 8, name: 'Partnership Agreement', description: 'Finalize strategic alliance with TechCorp', status: 'completed', priority: 'high', category: 'Business', value: 250000, date: '2024-03-05', assignee: 'Sarah Chen' },
+  { id: 9, name: 'Quality Assurance Overhaul', description: 'Implement automated testing pipeline', status: 'pending', priority: 'low', category: 'Engineering', value: 42000, date: '2024-03-28', assignee: 'James Wilson' },
+  { id: 10, name: 'Customer Onboarding Flow', description: 'Redesign new user experience journey', status: 'active', priority: 'medium', category: 'Product', value: 38000, date: '2024-03-22', assignee: 'Maria Garcia' },
+  { id: 11, name: 'Annual Report Preparation', description: 'Compile financial and operational metrics', status: 'archived', priority: 'low', category: 'Finance', value: 8000, date: '2024-02-28', assignee: 'David Brown' },
+  { id: 12, name: 'Security Audit Remediation', description: 'Address findings from Q4 penetration test', status: 'completed', priority: 'high', category: 'Security', value: 55000, date: '2024-03-02', assignee: 'Alex Kim' },
+]`,
+    categories: `['All', 'Strategy', 'Research', 'Marketing', 'Product', 'Finance', 'HR', 'Engineering', 'Business', 'Security']`,
+  };
+}
+
 function generateUniversalApp(appName: string, domain: string, prompt: string): string {
+  const seedData = generateSeedData(domain, prompt);
   return `import { useState } from 'react'
 import { Search, Plus, X, Edit, Trash2, BarChart2, Users, Settings, Bell, Check, AlertCircle, Home, Menu, ChevronRight, TrendingUp, TrendingDown, Filter } from 'lucide-react'
 
@@ -147,22 +211,9 @@ interface Item {
 
 // ── Seed Data ────────────────────────────────────────────────────────────────
 
-const INITIAL_ITEMS: Item[] = [
-  { id: 1, name: 'Strategic Planning Review', description: 'Q2 strategic objectives and resource allocation', status: 'active', priority: 'high', category: 'Strategy', value: 45000, date: '2024-03-15', assignee: 'Sarah Chen' },
-  { id: 2, name: 'Market Analysis Report', description: 'Competitive landscape and market trends analysis', status: 'completed', priority: 'high', category: 'Research', value: 28000, date: '2024-03-12', assignee: 'James Wilson' },
-  { id: 3, name: 'Product Launch Campaign', description: 'Multi-channel marketing campaign for new release', status: 'active', priority: 'high', category: 'Marketing', value: 67000, date: '2024-03-18', assignee: 'Maria Garcia' },
-  { id: 4, name: 'Customer Feedback Integration', description: 'Incorporate Q1 survey results into roadmap', status: 'pending', priority: 'medium', category: 'Product', value: 15000, date: '2024-03-20', assignee: 'Alex Kim' },
-  { id: 5, name: 'Budget Optimization', description: 'Reduce operational costs by 15% this quarter', status: 'active', priority: 'medium', category: 'Finance', value: 120000, date: '2024-03-10', assignee: 'David Brown' },
-  { id: 6, name: 'Team Training Program', description: 'Upskill development team on new technologies', status: 'pending', priority: 'medium', category: 'HR', value: 32000, date: '2024-03-25', assignee: 'Lisa Zhang' },
-  { id: 7, name: 'Infrastructure Upgrade', description: 'Migrate services to cloud-native architecture', status: 'active', priority: 'high', category: 'Engineering', value: 95000, date: '2024-03-08', assignee: 'Tom Anderson' },
-  { id: 8, name: 'Partnership Agreement', description: 'Finalize strategic alliance with TechCorp', status: 'completed', priority: 'high', category: 'Business', value: 250000, date: '2024-03-05', assignee: 'Sarah Chen' },
-  { id: 9, name: 'Quality Assurance Overhaul', description: 'Implement automated testing pipeline', status: 'pending', priority: 'low', category: 'Engineering', value: 42000, date: '2024-03-28', assignee: 'James Wilson' },
-  { id: 10, name: 'Customer Onboarding Flow', description: 'Redesign new user experience journey', status: 'active', priority: 'medium', category: 'Product', value: 38000, date: '2024-03-22', assignee: 'Maria Garcia' },
-  { id: 11, name: 'Annual Report Preparation', description: 'Compile financial and operational metrics', status: 'archived', priority: 'low', category: 'Finance', value: 8000, date: '2024-02-28', assignee: 'David Brown' },
-  { id: 12, name: 'Security Audit Remediation', description: 'Address findings from Q4 penetration test', status: 'completed', priority: 'high', category: 'Security', value: 55000, date: '2024-03-02', assignee: 'Alex Kim' },
-]
+const INITIAL_ITEMS: Item[] = ${seedData.items}
 
-const CATEGORIES = ['All', 'Strategy', 'Research', 'Marketing', 'Product', 'Finance', 'HR', 'Engineering', 'Business', 'Security']
+const CATEGORIES = ${seedData.categories}
 
 // ── Main App ─────────────────────────────────────────────────────────────────
 
@@ -281,7 +332,7 @@ export default function App() {
           <div className="p-4 border-t border-gray-800">
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center text-sm font-bold">F</div>
-              <div><p className="text-sm font-medium">FORGE Agent</p><p className="text-xs text-gray-500">Online</p></div>
+              <div><p className="text-sm font-medium">AeroFyta</p><p className="text-xs text-gray-500">Online</p></div>
             </div>
           </div>
         </aside>
