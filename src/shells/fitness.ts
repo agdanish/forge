@@ -118,8 +118,8 @@ const ARCHETYPES: Archetype[] = [
     id: 'real-estate',
     keywords: ['real estate', 'property', 'house', 'apartment', 'rent', 'mortgage', 'listing', 'realty', 'flat'],
     patterns: [/\breal\s+estate\b/i, /\bproperty\s+(?:listing|manager|search)\b/i],
-    shellCapable: true,  // Universal shell handles property listings well
-    confidence: 70,
+    shellCapable: true,  // Simple property listing = shell; map/comparison = LLM (handled by custom UI patterns)
+    confidence: 60,  // Lower confidence — easily overridden by map/comparison signals
   },
 
   // ── LLM-REQUIRED ARCHETYPES ──
@@ -184,6 +184,32 @@ const CUSTOM_UI_PATTERNS = [
   /\b(?:infinite\s+scroll|lazy\s+load|pagination)\b/i,
   /\b(?:notification|toast|snackbar)\s+system\b/i,
   /\b(?:file\s+upload|image\s+crop|pdf\s+viewer)\b/i,
+  // Canvas / editor / diagram signals
+  /\b(?:canvas|freehand|infinite[\s-]canvas)\b/i,
+  /\b(?:zoom\s+controls?|pan\s+and\s+zoom|pinch[\s-]zoom)\b/i,
+  /\b(?:connector\s+lines?|node\s+types?|arrows?)\b/i,
+  /\b(?:mini[\s-]map|minimap)\b/i,
+  /\b(?:cursor\s+presence|live\s+cursors?|collaborative\s+editing)\b/i,
+  /\b(?:affinity[\s-]map|mind[\s-]map|concept[\s-]map)\b/i,
+  /\b(?:drag\s+interactions?|reposition\s+elements?)\b/i,
+  /\b(?:slash[\s-]command|inline\s+comments?|suggestion\s+mode)\b/i,
+  // Map / location signals
+  /\b(?:map\s+markers?|map\s+view|map[\s/]list\s+split|map\s+summary)\b/i,
+  /\b(?:radius\s+filter|geolocation|location[\s-]based|nearby)\b/i,
+  /\b(?:pickup|dropoff|route\s+(?:list|planner|completion))\b/i,
+  /\b(?:delivery\s+(?:stops?|eta|tracking)|saved\s+places)\b/i,
+  // Ordering / booking flow signals
+  /\b(?:cart\s+(?:drawer|editing)|order\s+tracking|fare\s+estimate)\b/i,
+  /\b(?:booking\s+(?:summary|flow)|date\s+selection|guest\s+selector)\b/i,
+  /\b(?:item\s+customization|menu\s+detail|cuisine\s+filters?)\b/i,
+  /\b(?:comparison\s+(?:panel|tray)|side[\s-]by[\s-]side\s+comparison)\b/i,
+  // Video / media player signals
+  /\b(?:now[\s-]playing|progress\s+bar|queue\s+panel|playlist)\b/i,
+  /\b(?:chapter\s+timeline|transcript\s+search|video\s+player)\b/i,
+  /\b(?:quiz\s+checkpoints?|lesson\s+list)\b/i,
+  // Voice / presence / real-time social signals
+  /\b(?:voice[\s-]room|typing\s+indicator|member\s+presence|unread\s+badges?)\b/i,
+  /\b(?:emoji\s+reactions?|pinned\s+messages?|canned\s+replies?)\b/i,
 ];
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -231,6 +257,37 @@ const HARD_ESCAPE_PATTERNS: RegExp[] = [
   /\bphoto\s+(?:album|gallery|sharing|editor)\b/i,
   // Email
   /\bemail\s+(?:client|inbox)\b/i,
+  // Canvas / interactive builder — STRONG escape
+  /\bbrainstorming\s+canvas\b/i,
+  /\b(?:wireframing|wireframe)\s+tool\b/i,
+  /\bdiagram\s+builder\b/i,
+  /\bdocument\s+editor\b/i,
+  /\bposter\s+designer\b/i,
+  // Discord / voice — STRONG escape
+  /\bdiscord[\s-]inspired\b/i,
+  /\bvoice[\s-]room\b/i,
+  // Food / delivery / ordering — STRONG escape
+  /\bfood\s+delivery\b/i,
+  /\bordering\s+app\b/i,
+  /\bdelivery\s+(?:ordering|app)\b/i,
+  /\brestaurant\s+cards?\b/i,
+  // Travel / booking — STRONG escape
+  /\btravel\s+booking\b/i,
+  /\bride\s+booking\b/i,
+  /\bhotel\s+booking\b/i,
+  /\bitinerary\b/i,
+  // Map-heavy — STRONG escape
+  /\bmap\s+markers?\b/i,
+  /\bmap[\s/]+list\s+split\b/i,
+  /\broute\s+planner\b/i,
+  /\blocation[\s-]based\s+discovery\b/i,
+  /\bincident\s+monitoring\b/i,
+  /\bneighborhood\s+insights?\b/i,
+  // Video/course player — STRONG escape
+  /\bvideo\s+player\b/i,
+  /\bcourse\s+video\b/i,
+  /\bnow[\s-]playing\b/i,
+  /\bchapter\s+timeline\b/i,
 ];
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -338,12 +395,21 @@ export function checkShellFitness(prompt: string): FitnessResult {
     if (uniqueEntities.size >= 2) reasons.push(`${uniqueEntities.size} data entities`);
   }
 
-  // Custom UI patterns → moderate escape signal
+  // Custom UI patterns → moderate escape signal, scales with count
+  let customUICount = 0;
   for (const pat of CUSTOM_UI_PATTERNS) {
     if (pat.test(prompt)) {
-      score -= 8;
+      customUICount++;
       matchedEscapeKeywords++;
     }
+  }
+  if (customUICount > 0) {
+    // Progressive penalty: 1 match = -8, 2 = -18, 3 = -30, 4+ = -44+
+    const penalty = customUICount <= 2
+      ? customUICount * 9
+      : customUICount * 11;
+    score -= penalty;
+    if (customUICount >= 2) reasons.push(`${customUICount} custom UI signals`);
   }
 
   // ════════════════════════════════════════════════════
