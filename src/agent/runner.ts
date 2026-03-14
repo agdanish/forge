@@ -397,6 +397,8 @@ export class AgentRunner extends EventEmitter implements TypedEventEmitter {
     try {
       const job = await this.client.getJobV2(event.jobId);
       this.emitEvent({ type: "job_found", job });
+      // Mark as processing BEFORE firing async to prevent duplicate pickup from poll()
+      this.processingJobs.add(job.id);
       if (job.jobType === "SWARM") {
         await this.acceptAndProcessSwarmJob(job);
       } else {

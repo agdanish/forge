@@ -112,16 +112,25 @@ export function parseAppSpec(raw: string): AppSpec | null {
       }
     }
 
-    // 3. Fallback: find first balanced { ... } block (non-greedy approach)
+    // 3. Fallback: find first balanced { ... } block (string-aware)
     if (!jsonStr) {
       const startIdx = raw.indexOf('{');
       if (startIdx === -1) return null;
-      // Walk forward to find the matching closing brace
+      // Walk forward to find the matching closing brace, skipping over quoted strings
       let depth = 0;
       let endIdx = -1;
+      let inString = false;
       for (let i = startIdx; i < raw.length; i++) {
-        if (raw[i] === '{') depth++;
-        else if (raw[i] === '}') { depth--; if (depth === 0) { endIdx = i; break; } }
+        const ch = raw[i];
+        if (inString) {
+          // Skip escaped characters inside strings
+          if (ch === '\\') { i++; continue; }
+          if (ch === '"') inString = false;
+          continue;
+        }
+        if (ch === '"') { inString = true; continue; }
+        if (ch === '{') depth++;
+        else if (ch === '}') { depth--; if (depth === 0) { endIdx = i; break; } }
       }
       if (endIdx === -1) return null;
       jsonStr = raw.substring(startIdx, endIdx + 1);
