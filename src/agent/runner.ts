@@ -9,10 +9,12 @@ import { cleanupProject } from "../tools/projectBuilder.js";
 import { generateEmergencyZip } from "../tools/emergencyZip.js";
 import { validateZip } from "../validation/zipValidator.js";
 import { getScaffoldHint } from "../templates/index.js";
+import { renderFromPrompt } from "../shells/renderer.js";
 import type { Job, AgentEvent, TokenUsage, FileAttachment, WebSocketJobEvent } from "../types/index.js";
 import fs from "fs/promises";
 import path from "path";
-// archiver and createWriteStream removed — two-pass review eliminated
+import archiver from "archiver";
+import { createWriteStream } from "fs";
 
 // Approximate costs per 1M tokens for common models (input/output)
 const MODEL_COSTS: Record<string, { input: number; output: number }> = {
@@ -506,7 +508,50 @@ export class AgentRunner extends EventEmitter implements TypedEventEmitter {
     return errors;
   }
 
-  // ─── Job Processing (hardened: retry, emergency ZIP, timing) ──────────────
+  // ─── Shell Compilation → ZIP helper ─────────────────────────────────────
+
+  private async shellCompileToZip(prompt: string): Promise<{ zipPath: string; projectDir: string; files: string[]; responseText: string } | null> {
+    try {
+      const llm = getLLMClient();
+      // Use LLM for spec extraction (cheap — just JSON, no code gen)
+      const shellResult = await renderFromPrompt(prompt, async (sys, user) => {
+        const specResult = await llm.generate({ prompt: user, systemPrompt: sys, tools: false });
+        return specResult.text || '';
+      });
+
+      // Write files to temp directory and create ZIP
+      const tmpDir = path.join(process.cwd(), '.tmp-shell-' + Date.now());
+      await fs.mkdir(tmpDir, { recursive: true });
+
+      for (const file of shellResult.files) {
+        const filePath = path.join(tmpDir, file.path);
+        await fs.mkdir(path.dirname(filePath), { recursive: true });
+        await fs.writeFile(filePath, file.content, 'utf-8');
+      }
+
+      const zipPath = tmpDir + '.zip';
+      await new Promise<void>((resolve, reject) => {
+        const output = createWriteStream(zipPath);
+        const archive = archiver('zip', { zlib: { level: 9 } });
+        output.on('close', () => resolve());
+        archive.on('error', (err: Error) => reject(err));
+        archive.pipe(output);
+        archive.directory(tmpDir, false);
+        archive.finalize();
+      });
+
+      const fileNames = shellResult.files.map(f => f.path);
+      const responseText = `${shellResult.spec.appName} — ${shellResult.spec.tagline}\n\n✨ Features: ${shellResult.spec.views.join(', ')}, ${shellResult.spec.categories.slice(0, 3).join(', ')} categories, KPI dashboard\n🛠️ Stack: React 18 + TypeScript + Tailwind CSS + Vite + lucide-react\n🚀 Setup: npm install && npm run dev`;
+
+      logger.info(`Shell compilation complete: ${shellResult.spec.appName} (${shellResult.shell} shell, ${fileNames.length} files)`);
+      return { zipPath, projectDir: tmpDir, files: fileNames, responseText };
+    } catch (err) {
+      logger.warn(`Shell compilation failed: ${(err as Error).message}`);
+      return null;
+    }
+  }
+
+  // ─── Job Processing (hardened: shell-first, retry, emergency ZIP, timing) ──
 
   private async processJob(job: Job, useV2Submit = false): Promise<void> {
     this.processingJobs.add(job.id);
@@ -521,71 +566,94 @@ export class AgentRunner extends EventEmitter implements TypedEventEmitter {
       const effectiveBudget = job.jobType === "SWARM" && job.budgetPerAgent
         ? job.budgetPerAgent : job.budget;
 
-      // ── Stage 1: LLM Generation ──
-      timings.genStart = Date.now() - t0;
-      const result = await llm.generate({
-        prompt: job.prompt,
-        systemPrompt: HACKATHON_SYSTEM_PROMPT(effectiveBudget, job, getScaffoldHint(job.prompt)),
-        tools: true,
-      });
-      timings.genEnd = Date.now() - t0;
-      logger.info(`⏱ TIMING: LLM generation took ${timings.genEnd - timings.genStart}ms`);
-
-      // Track token usage
+      let zipPath = '';
+      let projectDir = '';
+      let projectFiles: string[] = [];
+      let responseText = '';
       let usage: TokenUsage | undefined;
-      if (result.usage) {
-        const cost = estimateCost(config.model, result.usage.promptTokens, result.usage.completionTokens);
-        usage = { promptTokens: result.usage.promptTokens, completionTokens: result.usage.completionTokens, totalTokens: result.usage.totalTokens, estimatedCost: cost };
-        this.stats.totalPromptTokens += result.usage.promptTokens;
-        this.stats.totalCompletionTokens += result.usage.completionTokens;
-        this.stats.totalTokens += result.usage.totalTokens;
-        this.stats.totalCost += cost;
-      }
+      let usedShellCompiler = false;
 
-      this.emitEvent({ type: "response_generated", job, preview: result.text?.substring(0, 200) || '', usage });
+      // ── PRIMARY PATH: Shell Compilation (fast, deterministic, cheap) ──
+      timings.shellStart = Date.now() - t0;
+      const shellResult = await this.shellCompileToZip(job.prompt);
+      timings.shellEnd = Date.now() - t0;
 
-      // ── Determine ZIP path (project build or emergency fallback) ──
-      let zipPath: string;
-      let projectDir: string;
-      let projectFiles: string[];
-      let responseText: string;
+      if (shellResult) {
+        logger.info(`⏱ TIMING: Shell compilation took ${timings.shellEnd - timings.shellStart}ms`);
+        zipPath = shellResult.zipPath;
+        projectDir = shellResult.projectDir;
+        projectFiles = shellResult.files;
+        responseText = shellResult.responseText;
+        usedShellCompiler = true;
 
-      if (result.projectBuild && result.projectBuild.success) {
-        zipPath = result.projectBuild.zipPath;
-        projectDir = result.projectBuild.projectDir;
-        projectFiles = result.projectBuild.files;
-        responseText = result.text || 'See attached project.';
-        this.emitEvent({ type: "project_built", job, files: projectFiles, zipPath });
-
-        // Deterministic validation (fast, no LLM call)
-        timings.validateStart = Date.now() - t0;
-        const valErrors = await this.deterministicValidation(projectDir, projectFiles);
-        if (valErrors.length > 0) {
-          logger.warn(`Deterministic validation issues (non-blocking): ${valErrors.join('; ')}`);
-        }
-        timings.validateEnd = Date.now() - t0;
-
-        // Standard ZIP validation
+        // Validate the shell-compiled ZIP
         const validation = await validateZip(zipPath, projectFiles);
         if (!validation.valid) {
-          logger.warn(`ZIP validation failed: ${validation.errors.join("; ")}. Using emergency ZIP fallback.`);
+          logger.warn(`Shell ZIP validation failed: ${validation.errors.join('; ')}. Falling back to LLM tool-call path.`);
+          usedShellCompiler = false;
+        }
+      }
+
+      // ── FALLBACK PATH: LLM Tool-Call Generation ──
+      if (!usedShellCompiler) {
+        logger.info('Using LLM tool-call generation (fallback path)');
+        timings.genStart = Date.now() - t0;
+        const result = await llm.generate({
+          prompt: job.prompt,
+          systemPrompt: HACKATHON_SYSTEM_PROMPT(effectiveBudget, job, getScaffoldHint(job.prompt)),
+          tools: true,
+        });
+        timings.genEnd = Date.now() - t0;
+        logger.info(`⏱ TIMING: LLM generation took ${timings.genEnd - (timings.genStart || 0)}ms`);
+
+        // Track token usage
+        if (result.usage) {
+          const cost = estimateCost(config.model, result.usage.promptTokens, result.usage.completionTokens);
+          usage = { promptTokens: result.usage.promptTokens, completionTokens: result.usage.completionTokens, totalTokens: result.usage.totalTokens, estimatedCost: cost };
+          this.stats.totalPromptTokens += result.usage.promptTokens;
+          this.stats.totalCompletionTokens += result.usage.completionTokens;
+          this.stats.totalTokens += result.usage.totalTokens;
+          this.stats.totalCost += cost;
+        }
+
+        this.emitEvent({ type: "response_generated", job, preview: result.text?.substring(0, 200) || '', usage });
+
+        if (result.projectBuild && result.projectBuild.success) {
+          zipPath = result.projectBuild.zipPath;
+          projectDir = result.projectBuild.projectDir;
+          projectFiles = result.projectBuild.files;
+          responseText = result.text || 'See attached project.';
+          this.emitEvent({ type: "project_built", job, files: projectFiles, zipPath });
+
+          // Deterministic validation
+          timings.validateStart = Date.now() - t0;
+          const valErrors = await this.deterministicValidation(projectDir, projectFiles);
+          if (valErrors.length > 0) {
+            logger.warn(`Deterministic validation issues (non-blocking): ${valErrors.join('; ')}`);
+          }
+          timings.validateEnd = Date.now() - t0;
+
+          // Standard ZIP validation
+          const validation = await validateZip(zipPath, projectFiles);
+          if (!validation.valid) {
+            logger.warn(`ZIP validation failed: ${validation.errors.join("; ")}. Using emergency ZIP fallback.`);
+            const emergency = await generateEmergencyZip(job.prompt);
+            zipPath = emergency.zipPath;
+            projectDir = emergency.projectDir;
+            projectFiles = emergency.files;
+            responseText = emergency.text;
+          }
+        } else {
+          logger.warn('LLM did not build a project — generating emergency ZIP fallback');
+          timings.emergencyStart = Date.now() - t0;
           const emergency = await generateEmergencyZip(job.prompt);
           zipPath = emergency.zipPath;
           projectDir = emergency.projectDir;
           projectFiles = emergency.files;
           responseText = emergency.text;
+          timings.emergencyEnd = Date.now() - t0;
+          logger.info(`⏱ TIMING: Emergency ZIP took ${(timings.emergencyEnd - (timings.emergencyStart || 0))}ms`);
         }
-      } else {
-        // LLM did NOT build a project — use emergency ZIP (NEVER submit text-only for build prompts)
-        logger.warn('LLM did not build a project — generating emergency ZIP fallback');
-        timings.emergencyStart = Date.now() - t0;
-        const emergency = await generateEmergencyZip(job.prompt);
-        zipPath = emergency.zipPath;
-        projectDir = emergency.projectDir;
-        projectFiles = emergency.files;
-        responseText = emergency.text;
-        timings.emergencyEnd = Date.now() - t0;
-        logger.info(`⏱ TIMING: Emergency ZIP took ${(timings.emergencyEnd - timings.emergencyStart)}ms`);
       }
 
       // ── Stage 2: Upload with retry ──
@@ -642,7 +710,10 @@ export class AgentRunner extends EventEmitter implements TypedEventEmitter {
 
       // ── Final timing summary ──
       const totalMs = Date.now() - t0;
-      logger.info(`⏱ TIMING SUMMARY: Total ${totalMs}ms (${(totalMs / 1000).toFixed(1)}s) | Gen: ${timings.genEnd - timings.genStart}ms | Upload: ${(timings.uploadEnd || 0) - (timings.uploadStart || 0)}ms | Submit: ${(timings.submitEnd || 0) - (timings.submitStart || 0)}ms`);
+      const genTime = usedShellCompiler
+        ? `Shell: ${(timings.shellEnd || 0) - (timings.shellStart || 0)}ms`
+        : `LLM: ${(timings.genEnd || 0) - (timings.genStart || 0)}ms`;
+      logger.info(`⏱ TIMING SUMMARY: Total ${totalMs}ms (${(totalMs / 1000).toFixed(1)}s) | ${genTime} | Upload: ${(timings.uploadEnd || 0) - (timings.uploadStart || 0)}ms | Submit: ${(timings.submitEnd || 0) - (timings.submitStart || 0)}ms | Path: ${usedShellCompiler ? 'SHELL' : 'LLM'}`);
 
       this.stats.jobsProcessed++;
     } catch (error) {

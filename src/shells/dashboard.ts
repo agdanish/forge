@@ -1,0 +1,351 @@
+/**
+ * Dashboard analytics shell — generates a metrics-heavy App.tsx from an AppSpec.
+ * Optimized for: KPI cards, bar/line charts (pure CSS), data tables, filters, trends.
+ */
+
+import { AppSpec } from './spec.js';
+import { getThemeById } from './themes.js';
+
+export function renderDashboardShell(spec: AppSpec): string {
+  const t = getThemeById(spec.theme);
+  const isDark = spec.theme.includes('dark');
+  const statusColors = isDark
+    ? `active: 'bg-emerald-900/50 text-emerald-300', pending: 'bg-amber-900/50 text-amber-300', completed: 'bg-blue-900/50 text-blue-300', archived: 'bg-gray-800 text-gray-400'`
+    : `active: 'bg-emerald-100 text-emerald-700', pending: 'bg-amber-100 text-amber-700', completed: 'bg-blue-100 text-blue-700', archived: 'bg-gray-100 text-gray-500'`;
+
+  const kpiJSON = JSON.stringify(spec.kpis);
+  const seedJSON = JSON.stringify(spec.seedData);
+  const categoriesJSON = JSON.stringify(spec.categories);
+
+  return `import { useState, useMemo } from 'react';
+import {
+  Search, TrendingUp, TrendingDown, BarChart3, PieChart, Activity,
+  ArrowUpDown, Filter, Download, RefreshCw, ChevronDown, Eye,
+  LayoutDashboard, List, Settings, Menu, X, AlertCircle,
+  CheckCircle2, Clock, Archive, Users, DollarSign, Target, Zap
+} from 'lucide-react';
+
+// ── Types ──
+type Status = 'active' | 'pending' | 'completed' | 'archived';
+type Priority = 'high' | 'medium' | 'low';
+type Tab = 'overview' | 'analytics' | 'records';
+
+interface Record {
+  id: number;
+  name: string;
+  description: string;
+  status: Status;
+  priority: Priority;
+  category: string;
+  value: number;
+  date: string;
+  assignee: string;
+}
+
+interface KpiCard {
+  label: string;
+  value: string;
+  trend: string;
+  trendUp: boolean;
+}
+
+// ── Data ──
+const KPIS: KpiCard[] = ${kpiJSON};
+const CATEGORIES: string[] = ${categoriesJSON};
+const INITIAL_DATA: Record[] = (${seedJSON} as Omit<Record, 'id'>[]).map((d, i) => ({ ...d, id: i + 1 }));
+
+const STATUS_COLORS: { [key in Status]: string } = { ${statusColors} };
+const fmt = (n: number) => n >= 1_000_000 ? '$' + (n / 1_000_000).toFixed(1) + 'M' : n >= 1000 ? '$' + (n / 1000).toFixed(0) + 'k' : '$' + n;
+
+export default function App() {
+  const [tab, setTab] = useState<Tab>('overview');
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<Status | 'all'>('all');
+  const [categoryFilter, setCategoryFilter] = useState('all');
+  const [sortField, setSortField] = useState<'name' | 'value' | 'date'>('date');
+  const [sortAsc, setSortAsc] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [timeRange, setTimeRange] = useState('30d');
+
+  const filtered = useMemo(() => {
+    let r = INITIAL_DATA.filter(item => {
+      if (search && !item.name.toLowerCase().includes(search.toLowerCase())) return false;
+      if (statusFilter !== 'all' && item.status !== statusFilter) return false;
+      if (categoryFilter !== 'all' && item.category !== categoryFilter) return false;
+      return true;
+    });
+    r.sort((a, b) => {
+      const d = sortAsc ? 1 : -1;
+      if (sortField === 'name') return d * a.name.localeCompare(b.name);
+      if (sortField === 'value') return d * (a.value - b.value);
+      return d * (new Date(a.date).getTime() - new Date(b.date).getTime());
+    });
+    return r;
+  }, [search, statusFilter, categoryFilter, sortField, sortAsc]);
+
+  // ── Stats ──
+  const totalValue = INITIAL_DATA.reduce((s, r) => s + r.value, 0);
+  const avgValue = totalValue / INITIAL_DATA.length;
+  const statusCounts = { active: 0, pending: 0, completed: 0, archived: 0 };
+  INITIAL_DATA.forEach(r => statusCounts[r.status]++);
+  const categoryCounts: { [key: string]: number } = {};
+  INITIAL_DATA.forEach(r => { categoryCounts[r.category] = (categoryCounts[r.category] || 0) + 1; });
+  const categoryValues: { [key: string]: number } = {};
+  INITIAL_DATA.forEach(r => { categoryValues[r.category] = (categoryValues[r.category] || 0) + r.value; });
+  const maxCatValue = Math.max(...Object.values(categoryValues), 1);
+
+  const toggleSort = (f: typeof sortField) => {
+    if (sortField === f) setSortAsc(!sortAsc); else { setSortField(f); setSortAsc(true); }
+  };
+
+  // ── KPI Cards ──
+  const KpiGrid = () => (
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      {KPIS.map((kpi, i) => {
+        const icons = [Target, DollarSign, Users, Zap];
+        const Icon = icons[i % icons.length];
+        return (
+          <div key={i} className="${t.card} ${t.cardBorder} border rounded-xl p-5 hover:shadow-lg transition-shadow">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="${t.textMuted} text-xs font-medium uppercase tracking-wide">{kpi.label}</p>
+                <p className="${t.text} text-3xl font-bold mt-2">{kpi.value}</p>
+              </div>
+              <div className="p-2 rounded-lg ${isDark ? 'bg-gray-800' : 'bg-gray-100'}">
+                <Icon className="w-5 h-5 ${t.accent}" />
+              </div>
+            </div>
+            <div className={\`flex items-center gap-1.5 mt-3 text-sm \${kpi.trendUp ? '${t.success}' : '${t.danger}'}\`}>
+              {kpi.trendUp ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
+              <span className="font-medium">{kpi.trend}</span>
+              <span className="${t.textSubtle} text-xs">vs last period</span>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+
+  // ── Bar Chart (CSS-only) ──
+  const BarChart = () => (
+    <div className="${t.card} ${t.cardBorder} border rounded-xl p-5">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="${t.text} font-semibold">Value by Category</h3>
+        <BarChart3 className="w-5 h-5 ${t.textMuted}" />
+      </div>
+      <div className="space-y-3">
+        {Object.entries(categoryValues).sort(([,a],[,b]) => b - a).map(([cat, val]) => (
+          <div key={cat}>
+            <div className="flex items-center justify-between mb-1">
+              <span className="${t.textMuted} text-sm">{cat}</span>
+              <span className="${t.text} text-sm font-mono">{fmt(val)}</span>
+            </div>
+            <div className="h-2 rounded-full ${isDark ? 'bg-gray-800' : 'bg-gray-200'} overflow-hidden">
+              <div className="h-full rounded-full bg-gradient-to-r ${t.gradient} transition-all duration-700" style={{ width: \`\${(val / maxCatValue) * 100}%\` }} />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  // ── Status Donut (CSS-only) ──
+  const StatusBreakdown = () => (
+    <div className="${t.card} ${t.cardBorder} border rounded-xl p-5">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="${t.text} font-semibold">Status Breakdown</h3>
+        <PieChart className="w-5 h-5 ${t.textMuted}" />
+      </div>
+      <div className="space-y-3">
+        {(['active', 'pending', 'completed', 'archived'] as Status[]).map(s => (
+          <div key={s} className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <span className={\`w-3 h-3 rounded-full \${s === 'active' ? '${isDark ? 'bg-emerald-400' : 'bg-emerald-500'}' : s === 'pending' ? '${isDark ? 'bg-amber-400' : 'bg-amber-500'}' : s === 'completed' ? '${isDark ? 'bg-blue-400' : 'bg-blue-500'}' : '${isDark ? 'bg-gray-500' : 'bg-gray-400'}'}\`} />
+              <span className="${t.textMuted} text-sm capitalize">{s}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="${t.text} text-sm font-semibold">{statusCounts[s]}</span>
+              <span className="${t.textSubtle} text-xs">({Math.round(statusCounts[s] / INITIAL_DATA.length * 100)}%)</span>
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="mt-4 h-3 rounded-full overflow-hidden flex ${isDark ? 'bg-gray-800' : 'bg-gray-200'}">
+        <div className="${isDark ? 'bg-emerald-400' : 'bg-emerald-500'}" style={{ width: \`\${statusCounts.active / INITIAL_DATA.length * 100}%\` }} />
+        <div className="${isDark ? 'bg-amber-400' : 'bg-amber-500'}" style={{ width: \`\${statusCounts.pending / INITIAL_DATA.length * 100}%\` }} />
+        <div className="${isDark ? 'bg-blue-400' : 'bg-blue-500'}" style={{ width: \`\${statusCounts.completed / INITIAL_DATA.length * 100}%\` }} />
+        <div className="${isDark ? 'bg-gray-500' : 'bg-gray-400'}" style={{ width: \`\${statusCounts.archived / INITIAL_DATA.length * 100}%\` }} />
+      </div>
+    </div>
+  );
+
+  // ── Activity Timeline ──
+  const ActivityTimeline = () => (
+    <div className="${t.card} ${t.cardBorder} border rounded-xl p-5">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="${t.text} font-semibold">Recent Activity</h3>
+        <Activity className="w-5 h-5 ${t.textMuted}" />
+      </div>
+      <div className="space-y-3">
+        {INITIAL_DATA.slice(0, 6).map((r, i) => (
+          <div key={i} className="flex items-start gap-3">
+            <div className="mt-1 w-2 h-2 rounded-full ${isDark ? 'bg-indigo-400' : 'bg-blue-500'} flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="${t.text} text-sm font-medium truncate">{r.name}</p>
+              <p className="${t.textSubtle} text-xs">{r.assignee} \u2022 {r.date}</p>
+            </div>
+            <span className={\`text-xs px-2 py-0.5 rounded-full flex-shrink-0 \${STATUS_COLORS[r.status]}\`}>{r.status}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  // ── Top Performers ──
+  const TopPerformers = () => (
+    <div className="${t.card} ${t.cardBorder} border rounded-xl p-5">
+      <h3 className="${t.text} font-semibold mb-4">Top ${spec.primaryEntityPlural} by Value</h3>
+      <div className="space-y-3">
+        {[...INITIAL_DATA].sort((a, b) => b.value - a.value).slice(0, 5).map((r, i) => (
+          <div key={i} className="flex items-center gap-3">
+            <span className={\`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold \${i === 0 ? '${isDark ? 'bg-amber-900/50 text-amber-300' : 'bg-amber-100 text-amber-700'}' : '${isDark ? 'bg-gray-800 text-gray-400' : 'bg-gray-100 text-gray-500'}'}\`}>{i + 1}</span>
+            <div className="flex-1 min-w-0">
+              <p className="${t.text} text-sm font-medium truncate">{r.name}</p>
+              <p className="${t.textSubtle} text-xs">{r.category}</p>
+            </div>
+            <span className="${t.text} text-sm font-mono font-semibold">{fmt(r.value)}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  // ── Data Table ──
+  const DataTable = () => (
+    <div className="${t.card} ${t.cardBorder} border rounded-xl overflow-hidden">
+      <div className="overflow-x-auto">
+        <table className="w-full">
+          <thead>
+            <tr className="${isDark ? 'bg-gray-800/50 border-gray-800' : 'bg-gray-50 border-gray-200'} border-b">
+              {[['name','Name'],['status','Status'],['category','Category'],['value','Value'],['date','Date'],['assignee','Assignee']].map(([key, label]) => (
+                <th key={key} onClick={() => ['name','value','date'].includes(key) ? toggleSort(key as any) : null}
+                  className={\`px-4 py-3 text-left text-xs font-medium ${t.textMuted} uppercase tracking-wide \${['name','value','date'].includes(key) ? 'cursor-pointer' : ''}\`}>
+                  <div className="flex items-center gap-1">{label}{sortField === key && <ArrowUpDown className="w-3 h-3" />}</div>
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y ${isDark ? 'divide-gray-800' : 'divide-gray-200'}">
+            {filtered.map(r => (
+              <tr key={r.id} className="${isDark ? 'hover:bg-gray-800/50' : 'hover:bg-gray-50'} transition-colors">
+                <td className="px-4 py-3"><div><span className="${t.text} text-sm font-medium">{r.name}</span><p className="${t.textSubtle} text-xs mt-0.5">{r.description}</p></div></td>
+                <td className="px-4 py-3"><span className={\`text-xs px-2 py-0.5 rounded-full \${STATUS_COLORS[r.status]}\`}>{r.status}</span></td>
+                <td className="px-4 py-3 ${t.textMuted} text-sm">{r.category}</td>
+                <td className="px-4 py-3 ${t.text} text-sm font-mono">{fmt(r.value)}</td>
+                <td className="px-4 py-3 ${t.textMuted} text-sm">{r.date}</td>
+                <td className="px-4 py-3 ${t.textMuted} text-sm">{r.assignee}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {filtered.length === 0 && (
+        <div className="text-center py-12">
+          <AlertCircle className="${t.textSubtle} w-8 h-8 mx-auto mb-2" />
+          <p className="${t.textMuted}">No records match your filters</p>
+        </div>
+      )}
+    </div>
+  );
+
+  const tabs: { id: Tab; label: string; icon: typeof LayoutDashboard }[] = [
+    { id: 'overview', label: 'Overview', icon: LayoutDashboard },
+    { id: 'analytics', label: 'Analytics', icon: BarChart3 },
+    { id: 'records', label: '${spec.primaryEntityPlural}', icon: List },
+  ];
+
+  return (
+    <div className="min-h-screen ${t.bg} ${t.text} flex">
+      {/* Sidebar */}
+      {sidebarOpen && (
+        <aside className="w-64 ${t.card} ${t.cardBorder} border-r flex flex-col min-h-screen">
+          <div className="p-4 border-b ${isDark ? 'border-gray-800' : 'border-gray-200'}">
+            <h1 className="text-xl font-bold bg-gradient-to-r ${t.gradient} bg-clip-text text-transparent">${spec.appName}</h1>
+            <p className="${t.textMuted} text-xs mt-1">${spec.tagline}</p>
+          </div>
+          <nav className="flex-1 p-3 space-y-1">
+            {tabs.map(({ id, label, icon: Icon }) => (
+              <button key={id} onClick={() => setTab(id)} className={\`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors \${tab === id ? '${isDark ? 'bg-gray-800 text-white' : 'bg-gray-200 text-gray-900'}' : '${t.textMuted} ${isDark ? 'hover:bg-gray-800/50' : 'hover:bg-gray-100'}'}\`}>
+                <Icon className="w-4 h-4" />{label}
+              </button>
+            ))}
+          </nav>
+          <div className="p-4 border-t ${isDark ? 'border-gray-800' : 'border-gray-200'}">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-full bg-gradient-to-br ${t.gradient} flex items-center justify-center text-white text-xs font-bold">A</div>
+              <div><p className="${t.text} text-sm font-medium">Admin</p><p className="${t.textSubtle} text-xs">${spec.domain}</p></div>
+            </div>
+          </div>
+        </aside>
+      )}
+
+      {/* Main */}
+      <main className="flex-1 overflow-y-auto">
+        <header className="sticky top-0 z-20 ${t.card} ${t.cardBorder} border-b backdrop-blur-xl ${isDark ? 'bg-opacity-80' : 'bg-opacity-90'}">
+          <div className="flex items-center justify-between px-6 py-4">
+            <div className="flex items-center gap-3">
+              <button onClick={() => setSidebarOpen(!sidebarOpen)} className="${t.textMuted} lg:hidden"><Menu className="w-5 h-5" /></button>
+              <h2 className="text-lg font-semibold">{tabs.find(t => t.id === tab)?.label}</h2>
+            </div>
+            <div className="flex items-center gap-3">
+              <select value={timeRange} onChange={e => setTimeRange(e.target.value)} className="px-3 py-1.5 rounded-lg ${t.input} text-sm">
+                <option value="7d">Last 7 days</option><option value="30d">Last 30 days</option><option value="90d">Last 90 days</option><option value="all">All time</option>
+              </select>
+              {tab === 'records' && (
+                <>
+                  <div className="relative">
+                    <Search className="w-4 h-4 ${t.textSubtle} absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search..." className="pl-9 pr-3 py-1.5 rounded-lg ${t.input} text-sm w-48 focus:outline-none" />
+                  </div>
+                  <select value={statusFilter} onChange={e => setStatusFilter(e.target.value as any)} className="px-3 py-1.5 rounded-lg ${t.input} text-sm">
+                    <option value="all">All Status</option>
+                    <option value="active">Active</option><option value="pending">Pending</option><option value="completed">Completed</option>
+                  </select>
+                </>
+              )}
+              <button className="${isDark ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'} p-2 rounded-lg transition-colors"><RefreshCw className="w-4 h-4" /></button>
+            </div>
+          </div>
+        </header>
+
+        <div className="p-6 space-y-6">
+          {tab === 'overview' && (
+            <>
+              <KpiGrid />
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <BarChart />
+                <StatusBreakdown />
+              </div>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <ActivityTimeline />
+                <TopPerformers />
+              </div>
+            </>
+          )}
+          {tab === 'analytics' && (
+            <>
+              <KpiGrid />
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="lg:col-span-2"><BarChart /></div>
+                <StatusBreakdown />
+              </div>
+              <TopPerformers />
+            </>
+          )}
+          {tab === 'records' && <DataTable />}
+        </div>
+      </main>
+    </div>
+  );
+}`;
+}
