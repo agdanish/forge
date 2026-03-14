@@ -10,6 +10,8 @@ import { AppSpec, getSpecExtractionPrompt, parseAppSpec, generateFallbackSpec } 
 import { renderUniversalShell } from './universal.js';
 import { renderDashboardShell } from './dashboard.js';
 import { renderLandingShell } from './landing.js';
+import { renderKanbanShell } from './kanban.js';
+import { renderWizardShell } from './wizard.js';
 import { getBoilerplateFiles } from '../templates/boilerplate.js';
 import { logger } from '../utils/logger.js';
 
@@ -17,7 +19,7 @@ export interface ShellRenderResult {
   appTsx: string;
   readmeMd: string;
   spec: AppSpec;
-  shell: 'universal' | 'dashboard' | 'landing';
+  shell: 'universal' | 'dashboard' | 'landing' | 'kanban' | 'wizard';
   files: { path: string; content: string }[];
 }
 
@@ -31,6 +33,10 @@ export function renderFromSpec(spec: AppSpec): ShellRenderResult {
     ? renderDashboardShell(spec)
     : shell === 'landing'
     ? renderLandingShell(spec)
+    : shell === 'kanban'
+    ? renderKanbanShell(spec)
+    : shell === 'wizard'
+    ? renderWizardShell(spec)
     : renderUniversalShell(spec);
 
   const readmeMd = generateReadme(spec);

@@ -31,7 +31,7 @@ export interface AppSpec {
   primaryEntity: string;       // e.g. "Task", "Product", "Patient"
   primaryEntityPlural: string; // e.g. "Tasks", "Products", "Patients"
   primaryAction: string;       // e.g. "Track", "Manage", "Analyze"
-  shell: 'universal' | 'dashboard' | 'landing';
+  shell: 'universal' | 'dashboard' | 'landing' | 'kanban' | 'wizard';
   theme: 'neutral-dark' | 'fintech-dark' | 'creator-dark' | 'health-light' | 'education-light' | 'neutral-light';
   categories: string[];        // 6-10 categories for filtering
   kpis: KpiCard[];            // 4 KPI cards
@@ -56,7 +56,7 @@ Schema:
   "primaryEntity": "string (singular, e.g. Task, Product, Patient)",
   "primaryEntityPlural": "string (plural, e.g. Tasks, Products, Patients)",
   "primaryAction": "string (verb, e.g. Track, Manage, Analyze, Shop)",
-  "shell": "universal" or "dashboard" or "landing",
+  "shell": "universal" or "dashboard" or "landing" or "kanban" or "wizard",
   "theme": one of: "neutral-dark", "fintech-dark", "creator-dark", "health-light", "education-light", "neutral-light",
   "categories": ["string array of 6-8 categories relevant to the domain"],
   "kpis": [
@@ -83,7 +83,7 @@ Rules:
 - Categories must be relevant to the specific domain
 - KPI values must be realistic for the domain
 - Choose theme based on domain: fintech-dark for finance, health-light for health, education-light for education, neutral-dark for tech/general, creator-dark for creative, neutral-light for consumer/social
-- Choose shell "dashboard" for analytics/metrics-heavy prompts, "landing" for landing pages/product showcases/startup launches/marketing pages/portfolios/homepages, "universal" for everything else
+- Choose shell "dashboard" for analytics/metrics-heavy prompts, "kanban" for workflow/pipeline/board/stages prompts, "wizard" for onboarding/intake/assessment/step-by-step/guided prompts, "landing" for landing pages/product showcases/startup launches/marketing pages/portfolios/homepages, "universal" for everything else
 
 Return ONLY the JSON object. No other text.`;
 }
@@ -131,13 +131,21 @@ export function generateFallbackSpec(prompt: string): AppSpec {
   // Detect shell type from prompt keywords
   const landingKeywords = ['landing', 'showcase', 'homepage', 'home page', 'product page', 'launch', 'startup', 'campaign', 'marketing', 'portfolio', 'company website', 'saas', 'coming soon', 'waitlist', 'promo', 'brand', 'explainer', 'pitch'];
   const dashboardKeywords = ['dashboard', 'analytics', 'insights', 'reporting', 'metrics', 'monitor', 'statistics', 'kpi', 'overview', 'report'];
+  const kanbanKeywords = ['kanban', 'pipeline', 'workflow', 'stages', 'hiring pipeline', 'triage', 'escalation', 'backlog', 'sprint board', 'ticket board', 'outreach tracker', 'approval flow', 'production pipeline', 'task board', 'issue board', 'project board'];
+  const wizardKeywords = ['wizard', 'onboarding', 'intake', 'questionnaire', 'setup flow', 'step-by-step', 'eligibility', 'assessment', 'guided', 'recommendation', 'configure', 'registration flow', 'sign-up flow', 'application form', 'multi-step', 'intake form'];
+  // "board" as standalone word (not inside "onboarding", "boardroom", etc.) routes to kanban
+  const hasStandaloneBoard = /\bboard\b/i.test(prompt) && !lower.includes('onboarding') && !lower.includes('boarding');
   // Additional: "product" or "platform" + showcase-like context → landing
   const hasShowcaseContext = ['product', 'platform', 'solution', 'service'].some(k => lower.includes(k)) && ['for', 'that helps', 'to help', 'designed', 'built for', 'page', 'website', 'site'].some(k => lower.includes(k));
   const hasDashboardKeyword = dashboardKeywords.some(k => lower.includes(k));
+  const hasKanbanKeyword = kanbanKeywords.some(k => lower.includes(k)) || hasStandaloneBoard;
+  const hasWizardKeyword = wizardKeywords.some(k => lower.includes(k));
   const hasLandingKeyword = landingKeywords.some(k => lower.includes(k)) || hasShowcaseContext;
-  // Dashboard keyword is explicit intent — takes priority when both present
+  // Priority: dashboard > wizard (explicit guided intent) > kanban > landing > universal
   const isDashboard = hasDashboardKeyword;
-  const isLanding = !isDashboard && hasLandingKeyword;
+  const isWizard = !isDashboard && hasWizardKeyword;
+  const isKanban = !isDashboard && !isWizard && hasKanbanKeyword;
+  const isLanding = !isDashboard && !isKanban && !isWizard && hasLandingKeyword;
 
   // Expanded entity detection with synonyms
   const entityMap: Record<string, [string, string, string]> = {
@@ -192,16 +200,20 @@ export function generateFallbackSpec(prompt: string): AppSpec {
     ? nameMatch[1].trim().split(/\s+/).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
     : `${domain} Hub`;
 
-  const detectedShell = isLanding ? 'landing' as const : isDashboard ? 'dashboard' as const : 'universal' as const;
+  const detectedShell = isDashboard ? 'dashboard' as const : isKanban ? 'kanban' as const : isWizard ? 'wizard' as const : isLanding ? 'landing' as const : 'universal' as const;
 
   // Try to apply a domain pack for realistic content
   const pack = getDomainPack(prompt);
-  const action = pack?.heroVerb || (isLanding ? 'Discover' : isDashboard ? 'Analyze' : 'Manage');
+  const action = pack?.heroVerb || (isLanding ? 'Discover' : isDashboard ? 'Analyze' : isKanban ? 'Track' : isWizard ? 'Guide' : 'Manage');
 
   return {
     appName,
     tagline: isLanding
       ? `The modern ${domain.toLowerCase()} platform that helps teams ${action.toLowerCase()} ${plural.toLowerCase()} smarter`
+      : isWizard
+      ? `Your guided ${domain.toLowerCase()} ${entity.toLowerCase()} assessment — step by step`
+      : isKanban
+      ? `Visualize and move your ${plural.toLowerCase()} through every stage`
       : `${action} your ${plural.toLowerCase()} efficiently and beautifully`,
     domain,
     primaryEntity: entity,
@@ -228,6 +240,6 @@ export function generateFallbackSpec(prompt: string): AppSpec {
       { name: 'QA Overhaul', description: 'Automated testing pipeline', status: 'pending', priority: 'low', category: 'Archive', value: 42000, date: '2026-03-28', assignee: 'James Wilson' },
       { name: 'Onboarding Flow', description: 'Redesign user journey', status: 'active', priority: 'medium', category: 'Active', value: 38000, date: '2026-03-22', assignee: 'Maria Garcia' },
     ],
-    views: isLanding ? ['Features', 'Pricing', 'FAQ'] : ['Dashboard', 'List', 'Board'],
+    views: isLanding ? ['Features', 'Pricing', 'FAQ'] : isKanban ? ['Board', 'List'] : isWizard ? ['Assessment', 'Results'] : ['Dashboard', 'List', 'Board'],
   };
 }

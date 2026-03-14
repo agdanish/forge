@@ -81,6 +81,20 @@ const TESTS: { id: string; prompt: string; expectedShell: string; expectedPack?:
   // Showcase-context routing (P4 refinement)
   { id: 'R1', prompt: 'Build a product for parents to manage after-school routines', expectedShell: 'landing' },
   { id: 'R2', prompt: 'Create a service platform that helps freelancers find work', expectedShell: 'landing' },
+
+  // Shell routing — kanban / workflow
+  { id: 'K1', prompt: 'Build a hiring pipeline tracker for a startup', expectedShell: 'kanban' },
+  { id: 'K2', prompt: 'Create a content production workflow board', expectedShell: 'kanban' },
+  { id: 'K3', prompt: 'Make a support escalation workflow tool', expectedShell: 'kanban' },
+  { id: 'K4', prompt: 'Build an issue triage board for a product team', expectedShell: 'kanban' },
+  { id: 'K5', prompt: 'Create a donor outreach pipeline board', expectedShell: 'kanban', expectedPack: 'nonprofit' },
+
+  // Shell routing — wizard / intake
+  { id: 'Z1', prompt: 'Build a student onboarding wizard', expectedShell: 'wizard', expectedPack: 'education' },
+  { id: 'Z2', prompt: 'Create a healthcare intake flow for new patients', expectedShell: 'wizard', expectedPack: 'healthcare' },
+  { id: 'Z3', prompt: 'Make an eligibility checker for a volunteer program', expectedShell: 'wizard' },
+  { id: 'Z4', prompt: 'Build a guided setup tool for a SaaS platform', expectedShell: 'wizard' },
+  { id: 'Z5', prompt: 'Create a multi-step advisor for small business grants', expectedShell: 'wizard' },
 ];
 
 const results: TestResult[] = [];
@@ -170,12 +184,12 @@ for (const test of TESTS) {
 console.log('\n' + '═'.repeat(80));
 const total = TESTS.length;
 const avgTime = Math.round(results.reduce((s, r) => s + r.timeMs, 0) / total);
-const shells = { universal: 0, dashboard: 0, landing: 0, ERROR: 0 };
+const shells = { universal: 0, dashboard: 0, landing: 0, kanban: 0, wizard: 0, ERROR: 0 };
 results.forEach(r => { shells[r.shell as keyof typeof shells] = (shells[r.shell as keyof typeof shells] || 0) + 1; });
 const packsUsed = new Set(results.filter(r => r.domainPack).map(r => r.domainPack)).size;
 
 console.log(`\n📊 Results: ${passed}/${total} passed | ${shellMismatch} shell mismatches | ${packMismatch} pack mismatches | ${failures} crashes`);
-console.log(`⏱  Avg: ${avgTime}ms | Shells: U=${shells.universal} D=${shells.dashboard} L=${shells.landing} | Domain packs used: ${packsUsed}/${listDomainPacks().length}`);
+console.log(`⏱  Avg: ${avgTime}ms | Shells: U=${shells.universal} D=${shells.dashboard} L=${shells.landing} K=${shells.kanban} W=${shells.wizard} | Domain packs used: ${packsUsed}/${listDomainPacks().length}`);
 
 if (shellMismatch > 0) {
   console.log(`\n⚠️  Shell mismatches need review:`);

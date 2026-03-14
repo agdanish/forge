@@ -54,6 +54,14 @@ const WEIRD_PROMPTS = [
   'I need you to construct a digital instrument for cataloging astronomical observations',
   'Can you whip up a snazzy web thingy for managing beehive inspections?',
   'yo make me a sick app for tracking sneaker drops',
+  // Kanban / workflow prompts
+  'Build a recruitment pipeline for our HR team',
+  'Create a sprint board for managing development tasks',
+  'Make a sales pipeline tracker with stages',
+  // Wizard / intake prompts
+  'Build an onboarding wizard for new employees',
+  'Create a step-by-step eligibility assessment tool',
+  'Make a guided recommendation engine for choosing a laptop',
 ];
 
 const results: TestResult[] = [];
