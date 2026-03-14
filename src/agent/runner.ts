@@ -6,13 +6,13 @@ import { getLLMClient } from "../llm/client.js";
 import { getConfig, configStore } from "../config/index.js";
 import { logger } from "../utils/logger.js";
 import { cleanupProject } from "../tools/projectBuilder.js";
+import { generateEmergencyZip } from "../tools/emergencyZip.js";
 import { validateZip } from "../validation/zipValidator.js";
 import { getScaffoldHint } from "../templates/index.js";
 import type { Job, AgentEvent, TokenUsage, FileAttachment, WebSocketJobEvent } from "../types/index.js";
 import fs from "fs/promises";
 import path from "path";
-import archiver from "archiver";
-import { createWriteStream } from "fs";
+// archiver and createWriteStream removed — two-pass review eliminated
 
 // Approximate costs per 1M tokens for common models (input/output)
 const MODEL_COSTS: Record<string, { input: number; output: number }> = {
@@ -255,145 +255,8 @@ export class AgentRunner extends EventEmitter implements TypedEventEmitter {
     this.emit("event", event);
   }
 
-  // ─── UPGRADE 1: TWO-PASS CODE REVIEW ──────────────────────────────────────
-
-  /**
-   * Reviews generated project files for critical bugs and returns fixes.
-   * Uses OpenRouter API directly (no tools) for fast, focused review.
-   * Never throws — always returns safely to avoid blocking submission.
-   */
-  private async twoPassReview(projectDir: string, files: string[]): Promise<Map<string, string>> {
-    const config = getConfig();
-    const fixes = new Map<string, string>();
-
-    try {
-      // Read source files only (skip node_modules, zip, etc.)
-      const reviewableExtensions = ['.tsx', '.ts', '.json', '.html', '.js', '.css'];
-      const fileContents: string[] = [];
-
-      for (const file of files) {
-        const ext = path.extname(file);
-        if (!reviewableExtensions.includes(ext)) continue;
-        try {
-          const fullPath = path.join(projectDir, file);
-          const content = await fs.readFile(fullPath, 'utf-8');
-          if (content.length < 30000) {
-            fileContents.push(`### ${file}\n\`\`\`\n${content}\n\`\`\``);
-          }
-        } catch { /* skip unreadable files */ }
-      }
-
-      if (fileContents.length === 0) return fixes;
-
-      const codeBlock = fileContents.join('\n\n');
-
-      logger.info('Running two-pass code review...');
-
-      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${config.openrouterApiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: config.model,
-          max_tokens: 4096,
-          temperature: 0.1,
-          messages: [{
-            role: 'user',
-            content: `You are a senior React/TypeScript expert doing a final code review before submission.
-
-Review these files for CRITICAL bugs only:
-
-${codeBlock}
-
-Critical bugs to find:
-1. Import from packages NOT listed in package.json dependencies
-2. Missing React/useState/useEffect imports
-3. onClick/onSubmit handlers that are empty (do nothing)
-4. TypeScript type errors (wrong props, missing required props)
-5. Missing files referenced in imports
-6. Tailwind classes with typos
-
-Return ONLY a valid JSON object where keys are filenames and values are the COMPLETE corrected file content.
-Only include files that need fixing. If everything is correct, return {}.
-
-Example: {"src/App.tsx": "complete corrected file content here"}
-
-Return ONLY the JSON, no explanation.`,
-          }],
-        }),
-      });
-
-      if (!response.ok) {
-        logger.warn(`Two-pass review API returned ${response.status}, skipping`);
-        return fixes;
-      }
-
-      const data = await response.json() as { choices?: { message?: { content?: string } }[] };
-      const content = data.choices?.[0]?.message?.content || '{}';
-
-      // Parse JSON response
-      const jsonMatch = content.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) return fixes;
-
-      const parsed = JSON.parse(jsonMatch[0]) as Record<string, string>;
-      let fixCount = 0;
-
-      for (const [file, correctedContent] of Object.entries(parsed)) {
-        if (typeof correctedContent === 'string' && correctedContent.length > 10) {
-          fixes.set(file, correctedContent);
-          fixCount++;
-        }
-      }
-
-      if (fixCount > 0) {
-        logger.info(`Two-pass review found ${fixCount} file(s) to fix`);
-      } else {
-        logger.info('Two-pass review: code looks good, no fixes needed');
-      }
-    } catch (error) {
-      logger.warn('Two-pass review failed (non-blocking):', error);
-    }
-
-    return fixes;
-  }
-
-  /**
-   * Apply fixes from two-pass review and re-create the ZIP file.
-   */
-  private async applyFixesAndRezip(
-    projectDir: string,
-    zipPath: string,
-    fixes: Map<string, string>
-  ): Promise<void> {
-    // Write fixed files back to disk
-    for (const [file, content] of fixes) {
-      const fullPath = path.join(projectDir, file);
-      try {
-        await fs.mkdir(path.dirname(fullPath), { recursive: true });
-        await fs.writeFile(fullPath, content, 'utf-8');
-        logger.debug(`Applied fix: ${file}`);
-      } catch (err) {
-        logger.warn(`Failed to apply fix for ${file}:`, err);
-      }
-    }
-
-    // Re-create the ZIP
-    await new Promise<void>((resolve, reject) => {
-      const output = createWriteStream(zipPath);
-      const archive = archiver('zip', { zlib: { level: 9 } });
-
-      output.on('close', resolve);
-      archive.on('error', reject);
-
-      archive.pipe(output);
-      archive.directory(projectDir, false);
-      archive.finalize();
-    });
-
-    logger.info(`Re-zipped project with fixes: ${zipPath}`);
-  }
+  // Two-pass LLM review REMOVED — replaced with deterministic validation in processJob.
+  // Saves ~$0.50 + 30-60 seconds per submission.
 
   // ─── WebSocket (Pusher) ────────────────────────────────────────────────────
 
@@ -590,11 +453,66 @@ Return ONLY the JSON, no explanation.`,
     }
   }
 
-  // ─── Job Processing (Upgrade 1 integrated) ────────────────────────────────
+  // ─── Retry helper ────────────────────────────────────────────────────────
+
+  private async retryAsync<T>(fn: () => Promise<T>, label: string, maxRetries = 3): Promise<T> {
+    let lastErr: unknown;
+    for (let i = 0; i <= maxRetries; i++) {
+      try {
+        return await fn();
+      } catch (err) {
+        lastErr = err;
+        if (i < maxRetries) {
+          const delay = Math.min(1000 * Math.pow(2, i), 8000);
+          logger.warn(`${label} failed (attempt ${i + 1}/${maxRetries + 1}), retrying in ${delay}ms: ${(err as Error).message?.substring(0, 100)}`);
+          await new Promise(r => setTimeout(r, delay));
+        }
+      }
+    }
+    throw lastErr;
+  }
+
+  // ─── Deterministic ZIP validation (replaces expensive two-pass LLM review) ─
+
+  private async deterministicValidation(projectDir: string, files: string[]): Promise<string[]> {
+    const errors: string[] = [];
+    try {
+      for (const file of files) {
+        if (!file.endsWith('.tsx') && !file.endsWith('.ts')) continue;
+        const fullPath = path.join(projectDir, file);
+        let content: string;
+        try { content = await fs.readFile(fullPath, 'utf-8'); } catch { continue; }
+
+        // Check for empty onClick handlers
+        if (/onClick=\{?\(\)\s*=>\s*\{\s*\}\}?/.test(content)) {
+          errors.push(`${file}: empty onClick handler detected`);
+        }
+        // Check for "Coming soon" / placeholder text
+        if (/coming soon|placeholder|lorem ipsum|todo:/i.test(content)) {
+          errors.push(`${file}: placeholder text detected`);
+        }
+        // Check for alert() calls
+        if (/\balert\s*\(/.test(content)) {
+          errors.push(`${file}: alert() call detected`);
+        }
+      }
+      // Check required files
+      if (!files.includes('README.md')) errors.push('Missing README.md');
+      if (!files.includes('package.json')) errors.push('Missing package.json');
+      if (!files.some(f => f.endsWith('App.tsx'))) errors.push('Missing App.tsx');
+    } catch (err) {
+      logger.warn('Deterministic validation error (non-blocking):', err);
+    }
+    return errors;
+  }
+
+  // ─── Job Processing (hardened: retry, emergency ZIP, timing) ──────────────
 
   private async processJob(job: Job, useV2Submit = false): Promise<void> {
     this.processingJobs.add(job.id);
     this.emitEvent({ type: "job_processing", job });
+    const timings: Record<string, number> = {};
+    const t0 = Date.now();
 
     try {
       const llm = getLLMClient();
@@ -603,12 +521,15 @@ Return ONLY the JSON, no explanation.`,
       const effectiveBudget = job.jobType === "SWARM" && job.budgetPerAgent
         ? job.budgetPerAgent : job.budget;
 
-      // UPGRADE 3: Use the massively enhanced system prompt
+      // ── Stage 1: LLM Generation ──
+      timings.genStart = Date.now() - t0;
       const result = await llm.generate({
         prompt: job.prompt,
         systemPrompt: HACKATHON_SYSTEM_PROMPT(effectiveBudget, job, getScaffoldHint(job.prompt)),
         tools: true,
       });
+      timings.genEnd = Date.now() - t0;
+      logger.info(`⏱ TIMING: LLM generation took ${timings.genEnd - timings.genStart}ms`);
 
       // Track token usage
       let usage: TokenUsage | undefined;
@@ -621,61 +542,107 @@ Return ONLY the JSON, no explanation.`,
         this.stats.totalCost += cost;
       }
 
-      this.emitEvent({ type: "response_generated", job, preview: result.text.substring(0, 200), usage });
+      this.emitEvent({ type: "response_generated", job, preview: result.text?.substring(0, 200) || '', usage });
+
+      // ── Determine ZIP path (project build or emergency fallback) ──
+      let zipPath: string;
+      let projectDir: string;
+      let projectFiles: string[];
+      let responseText: string;
 
       if (result.projectBuild && result.projectBuild.success) {
-        const { projectBuild } = result;
-        this.emitEvent({ type: "project_built", job, files: projectBuild.files, zipPath: projectBuild.zipPath });
+        zipPath = result.projectBuild.zipPath;
+        projectDir = result.projectBuild.projectDir;
+        projectFiles = result.projectBuild.files;
+        responseText = result.text || 'See attached project.';
+        this.emitEvent({ type: "project_built", job, files: projectFiles, zipPath });
 
-        // UPGRADE 1: Two-pass code review — fix bugs before submitting
-        try {
-          const fixes = await this.twoPassReview(projectBuild.projectDir, projectBuild.files);
-          if (fixes.size > 0) {
-            await this.applyFixesAndRezip(projectBuild.projectDir, projectBuild.zipPath, fixes);
-            logger.info(`Applied ${fixes.size} two-pass fix(es) to project`);
-          }
-        } catch (reviewError) {
-          logger.warn('Two-pass review/fix failed (non-blocking), submitting original:', reviewError);
+        // Deterministic validation (fast, no LLM call)
+        timings.validateStart = Date.now() - t0;
+        const valErrors = await this.deterministicValidation(projectDir, projectFiles);
+        if (valErrors.length > 0) {
+          logger.warn(`Deterministic validation issues (non-blocking): ${valErrors.join('; ')}`);
         }
+        timings.validateEnd = Date.now() - t0;
 
-        // Validate ZIP quality
-        const validation = await validateZip(projectBuild.zipPath, projectBuild.files);
+        // Standard ZIP validation
+        const validation = await validateZip(zipPath, projectFiles);
         if (!validation.valid) {
-          logger.warn(`ZIP validation failed: ${validation.errors.join("; ")}. Submitting text fallback.`);
-          const submitResult = useV2Submit
-            ? await this.client.submitResponseV2(job.id, result.text || "See description.")
-            : await this.client.submitResponse(job.id, result.text || "See description.");
-          this.emitEvent({ type: "response_submitted", job, responseId: submitResult.response.id, hasFiles: false });
-          cleanupProject(projectBuild.projectDir, projectBuild.zipPath);
-          return;
-        }
-
-        try {
-          this.emitEvent({ type: "files_uploading", job, fileCount: 1 });
-          const uploadedFiles = await this.client.uploadFile(projectBuild.zipPath);
-          this.emitEvent({ type: "files_uploaded", job, files: [uploadedFiles] });
-
-          const submitResult = useV2Submit
-            ? await this.client.submitResponseV2(job.id, result.text, "FILE", [uploadedFiles])
-            : await this.client.submitResponseWithFiles(job.id, { content: result.text, responseType: "FILE", files: [uploadedFiles] });
-
-          this.emitEvent({ type: "response_submitted", job, responseId: submitResult.response.id, hasFiles: true });
-          cleanupProject(projectBuild.projectDir, projectBuild.zipPath);
-        } catch (uploadError) {
-          logger.error("Upload failed, submitting text-only fallback:", uploadError);
-          const submitResult = useV2Submit
-            ? await this.client.submitResponseV2(job.id, result.text)
-            : await this.client.submitResponse(job.id, result.text);
-          this.emitEvent({ type: "response_submitted", job, responseId: submitResult.response.id, hasFiles: false });
-          cleanupProject(projectBuild.projectDir, projectBuild.zipPath);
+          logger.warn(`ZIP validation failed: ${validation.errors.join("; ")}. Using emergency ZIP fallback.`);
+          const emergency = await generateEmergencyZip(job.prompt);
+          zipPath = emergency.zipPath;
+          projectDir = emergency.projectDir;
+          projectFiles = emergency.files;
+          responseText = emergency.text;
         }
       } else {
-        // Text-only response
-        const submitResult = useV2Submit
-          ? await this.client.submitResponseV2(job.id, result.text)
-          : await this.client.submitResponse(job.id, result.text);
-        this.emitEvent({ type: "response_submitted", job, responseId: submitResult.response.id, hasFiles: false });
+        // LLM did NOT build a project — use emergency ZIP (NEVER submit text-only for build prompts)
+        logger.warn('LLM did not build a project — generating emergency ZIP fallback');
+        timings.emergencyStart = Date.now() - t0;
+        const emergency = await generateEmergencyZip(job.prompt);
+        zipPath = emergency.zipPath;
+        projectDir = emergency.projectDir;
+        projectFiles = emergency.files;
+        responseText = emergency.text;
+        timings.emergencyEnd = Date.now() - t0;
+        logger.info(`⏱ TIMING: Emergency ZIP took ${(timings.emergencyEnd - timings.emergencyStart)}ms`);
       }
+
+      // ── Stage 2: Upload with retry ──
+      timings.uploadStart = Date.now() - t0;
+      let uploadedFile: import("../types/index.js").FileAttachment;
+      try {
+        this.emitEvent({ type: "files_uploading", job, fileCount: 1 });
+        uploadedFile = await this.retryAsync(
+          () => this.client.uploadFile(zipPath),
+          'File upload',
+          3
+        );
+        this.emitEvent({ type: "files_uploaded", job, files: [uploadedFile] });
+      } catch (uploadError) {
+        // All upload retries failed — try emergency ZIP as last resort
+        logger.error('All upload retries failed. Trying emergency ZIP as final fallback.');
+        try {
+          const emergency = await generateEmergencyZip(job.prompt);
+          uploadedFile = await this.retryAsync(
+            () => this.client.uploadFile(emergency.zipPath),
+            'Emergency upload',
+            2
+          );
+          responseText = emergency.text;
+          projectDir = emergency.projectDir;
+        } catch (finalError) {
+          // Absolute last resort: submit text-only (better than nothing)
+          logger.error('CRITICAL: All upload attempts exhausted. Submitting text-only.');
+          const submitResult = useV2Submit
+            ? await this.client.submitResponseV2(job.id, responseText)
+            : await this.client.submitResponse(job.id, responseText);
+          this.emitEvent({ type: "response_submitted", job, responseId: submitResult.response.id, hasFiles: false });
+          cleanupProject(projectDir, zipPath);
+          return;
+        }
+      }
+      timings.uploadEnd = Date.now() - t0;
+      logger.info(`⏱ TIMING: Upload took ${timings.uploadEnd - timings.uploadStart}ms`);
+
+      // ── Stage 3: Submit response with retry ──
+      timings.submitStart = Date.now() - t0;
+      const submitResult = await this.retryAsync(
+        () => useV2Submit
+          ? this.client.submitResponseV2(job.id, responseText, "FILE", [uploadedFile])
+          : this.client.submitResponseWithFiles(job.id, { content: responseText, responseType: "FILE", files: [uploadedFile] }),
+        'Response submission',
+        3
+      );
+      timings.submitEnd = Date.now() - t0;
+      logger.info(`⏱ TIMING: Submit took ${timings.submitEnd - timings.submitStart}ms`);
+
+      this.emitEvent({ type: "response_submitted", job, responseId: submitResult.response.id, hasFiles: true });
+      cleanupProject(projectDir, zipPath);
+
+      // ── Final timing summary ──
+      const totalMs = Date.now() - t0;
+      logger.info(`⏱ TIMING SUMMARY: Total ${totalMs}ms (${(totalMs / 1000).toFixed(1)}s) | Gen: ${timings.genEnd - timings.genStart}ms | Upload: ${(timings.uploadEnd || 0) - (timings.uploadStart || 0)}ms | Submit: ${(timings.submitEnd || 0) - (timings.submitStart || 0)}ms`);
 
       this.stats.jobsProcessed++;
     } catch (error) {
@@ -685,6 +652,21 @@ Return ONLY the JSON, no explanation.`,
       } else {
         this.emitEvent({ type: "error", message: `Error processing job ${job.id}: ${errorMessage}`, error: error instanceof Error ? error : new Error(String(error)) });
         this.stats.errors++;
+
+        // Last-ditch: even on unexpected error, try emergency ZIP
+        try {
+          logger.warn('Attempting emergency ZIP on unexpected error');
+          const emergency = await generateEmergencyZip(job.prompt);
+          const uploadedFile = await this.client.uploadFile(emergency.zipPath);
+          const useV2 = job.jobType === "SWARM";
+          await (useV2
+            ? this.client.submitResponseV2(job.id, emergency.text, "FILE", [uploadedFile])
+            : this.client.submitResponseWithFiles(job.id, { content: emergency.text, responseType: "FILE", files: [uploadedFile] }));
+          logger.info('Emergency ZIP submitted successfully on error path');
+          cleanupProject(emergency.projectDir, emergency.zipPath);
+        } catch (emergencyErr) {
+          logger.error('Emergency ZIP submission also failed:', emergencyErr);
+        }
       }
     } finally {
       this.processingJobs.delete(job.id);

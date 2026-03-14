@@ -353,9 +353,14 @@ export class LLMClient {
             `retrying in ${delay}ms: ${(error as Error).message?.substring(0, 100)}`
           );
           
-          // Reset project builder before retry
-          activeProjectBuilder = null;
-          
+          // Reset project builder and re-inject boilerplate before retry
+          activeProjectBuilder = new ProjectBuilder();
+          const retryBoilerplate = getBoilerplateFiles();
+          for (const file of retryBoilerplate) {
+            activeProjectBuilder.addFile(file.path, file.content);
+          }
+          logger.debug(`Re-injected ${retryBoilerplate.length} boilerplate files for retry`);
+
           await sleep(delay);
           attempt++;
           continue;
