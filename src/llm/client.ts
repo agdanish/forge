@@ -6,6 +6,7 @@ import { logger } from "../utils/logger.js";
 import { webSearch, type WebSearchResult } from "../tools/webSearch.js";
 import { calculator, type CalculatorResult } from "../tools/calculator.js";
 import { ProjectBuilder, type ProjectFile, type ProjectBuildResult } from "../tools/projectBuilder.js";
+import { getBoilerplateFiles } from "../templates/boilerplate.js";
 
 // Errors that are worth retrying (usually transient LLM output issues)
 const RETRYABLE_ERROR_PATTERNS = [
@@ -312,6 +313,16 @@ export class LLMClient {
 
     // Reset project builder for each generation
     activeProjectBuilder = null;
+
+    // Pre-inject boilerplate files — saves 8 tool calls, LLM only creates App.tsx + README.md
+    if (enableTools) {
+      activeProjectBuilder = new ProjectBuilder();
+      const boilerplate = getBoilerplateFiles();
+      for (const file of boilerplate) {
+        activeProjectBuilder.addFile(file.path, file.content);
+      }
+      logger.debug(`Pre-injected ${boilerplate.length} boilerplate files (package.json, vite, tailwind, etc.)`);
+    }
 
     const tools = enableTools ? this.getTools() : undefined;
     const hasTools = tools && Object.keys(tools).length > 0;
