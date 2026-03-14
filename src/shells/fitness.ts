@@ -25,6 +25,7 @@
  */
 
 import { logger } from '../utils/logger.js';
+import { validateCapabilities, type CapabilityValidationResult } from './capabilities.js';
 
 export interface FitnessResult {
   score: number;           // 0-100, higher = better shell fit
@@ -33,6 +34,7 @@ export interface FitnessResult {
   matchedShellKeywords: number;
   matchedEscapeKeywords: number;
   detectedArchetype: string | null;
+  capabilityValidation: CapabilityValidationResult | null;
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -466,6 +468,28 @@ export function checkShellFitness(prompt: string): FitnessResult {
   }
 
   // ════════════════════════════════════════════════════
+  // LAYER 4: Capability validation (principled override)
+  // ════════════════════════════════════════════════════
+
+  let capabilityValidation: CapabilityValidationResult | null = null;
+
+  // Only run capability validation if score is still in shell territory
+  // (saves CPU for prompts already clearly rejected)
+  if (score >= THRESHOLD - 15) {
+    capabilityValidation = validateCapabilities(prompt);
+
+    if (capabilityValidation.shouldAbstain) {
+      // Capability validation says shells can't handle this — override to LLM
+      score = Math.min(score, THRESHOLD - 1);
+      reasons.push(`capability abstain: ${capabilityValidation.abstainReason}`);
+    } else if (capabilityValidation.incompatibleCount > 0) {
+      // Has incompatible capabilities — strong LLM signal
+      score -= capabilityValidation.incompatibleCount * 15;
+      reasons.push(`${capabilityValidation.incompatibleCount} incompatible capabilities`);
+    }
+  }
+
+  // ════════════════════════════════════════════════════
   // FINAL DECISION
   // ════════════════════════════════════════════════════
 
@@ -479,7 +503,8 @@ export function checkShellFitness(prompt: string): FitnessResult {
     ? `${matchedShellKeywords} shell signals, ${matchedEscapeKeywords} escape signals`
     : `Low fitness: ${matchedEscapeKeywords} escape signals outweigh ${matchedShellKeywords} shell signals`;
 
-  logger.info(`[FITNESS] Score: ${score}/100 → ${recommendation.toUpperCase()} | Archetype: ${detectedArchetype || 'none'} | Shell: ${matchedShellKeywords} | Escape: ${matchedEscapeKeywords} | ${reason}`);
+  const capExplanation = capabilityValidation ? ` | Cap: ${capabilityValidation.explanation}` : '';
+  logger.info(`[FITNESS] Score: ${score}/100 → ${recommendation.toUpperCase()} | Archetype: ${detectedArchetype || 'none'} | Shell: ${matchedShellKeywords} | Escape: ${matchedEscapeKeywords} | ${reason}${capExplanation}`);
 
   return {
     score,
@@ -488,5 +513,6 @@ export function checkShellFitness(prompt: string): FitnessResult {
     matchedShellKeywords,
     matchedEscapeKeywords,
     detectedArchetype,
+    capabilityValidation,
   };
 }
