@@ -146,7 +146,9 @@ export function repairComposedOutput(appTsx: string): RepairResult {
   // ── CHECK 6: onClick handler references undefined function ──
   const onClickHandlers = repaired.match(/onClick=\{(\w+)\}/g) || [];
   for (const handler of onClickHandlers) {
-    const fnName = handler.match(/onClick=\{(\w+)\}/)![1];
+    const fnMatch = handler.match(/onClick=\{(\w+)\}/);
+    if (!fnMatch) continue;
+    const fnName = fnMatch[1];
     // Skip arrow functions, setState calls, and common React patterns
     if (fnName.startsWith('set') || fnName === 'undefined' || fnName === 'null') continue;
     // Check if this function is defined

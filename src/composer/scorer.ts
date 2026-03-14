@@ -43,6 +43,18 @@ export function scoreKitComposition(prompt: string): ComposerScoreResult {
     };
   }
 
+  if (extraction.matches.length === 0) {
+    return {
+      extraction,
+      selectedKits: [],
+      compositionScore: 0,
+      missingCapabilities: [],
+      decisiveReason: 'Viable kit flagged but matches array empty',
+      shouldAbstain: true,
+      explanation: `Inconsistent state: hasViableKit=true but no matches`,
+    };
+  }
+
   const bestMatch = extraction.matches[0];
 
   // Strong single-kit match → use it

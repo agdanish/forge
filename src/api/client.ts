@@ -55,12 +55,20 @@ export class SeedstrClient {
       headers,
     });
 
-    const data = await response.json();
+    let data: unknown;
+    try {
+      data = await response.json();
+    } catch {
+      if (!response.ok) {
+        throw new Error(`API request failed: ${response.status} (non-JSON response)`);
+      }
+      throw new Error(`API returned non-JSON response: ${response.status}`);
+    }
 
     if (!response.ok) {
       const error = data as ApiError;
-      logger.error(`API Error: ${error.message}`);
-      throw new Error(error.message || `API request failed: ${response.status}`);
+      logger.error(`API Error: ${(error as ApiError).message || (error as ApiError).error}`);
+      throw new Error((error as ApiError).message || (error as ApiError).error || `API request failed: ${response.status}`);
     }
 
     return data as T;

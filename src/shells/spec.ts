@@ -94,10 +94,41 @@ Return ONLY the JSON object. No other text.`;
  */
 export function parseAppSpec(raw: string): AppSpec | null {
   try {
-    const jsonMatch = raw.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) return null;
+    // Strategy: try multiple extraction approaches to handle LLM output variance
+    let jsonStr: string | null = null;
 
-    const parsed = JSON.parse(jsonMatch[0]) as AppSpec;
+    // 1. Try direct parse (LLM returned clean JSON)
+    const trimmed = raw.trim();
+    if (trimmed.startsWith('{')) {
+      try { JSON.parse(trimmed); jsonStr = trimmed; } catch { /* not clean JSON */ }
+    }
+
+    // 2. Strip markdown fences (```json ... ```)
+    if (!jsonStr) {
+      const fenceMatch = raw.match(/```(?:json)?\s*\n?([\s\S]*?)```/);
+      if (fenceMatch) {
+        const inner = fenceMatch[1].trim();
+        try { JSON.parse(inner); jsonStr = inner; } catch { /* invalid */ }
+      }
+    }
+
+    // 3. Fallback: find first balanced { ... } block (non-greedy approach)
+    if (!jsonStr) {
+      const startIdx = raw.indexOf('{');
+      if (startIdx === -1) return null;
+      // Walk forward to find the matching closing brace
+      let depth = 0;
+      let endIdx = -1;
+      for (let i = startIdx; i < raw.length; i++) {
+        if (raw[i] === '{') depth++;
+        else if (raw[i] === '}') { depth--; if (depth === 0) { endIdx = i; break; } }
+      }
+      if (endIdx === -1) return null;
+      jsonStr = raw.substring(startIdx, endIdx + 1);
+    }
+
+    if (!jsonStr) return null;
+    const parsed = JSON.parse(jsonStr) as AppSpec;
 
     // Validate required fields
     if (!parsed.appName || !parsed.domain || !parsed.primaryEntity) return null;
