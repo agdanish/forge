@@ -13,6 +13,7 @@ import { renderLandingShell } from './landing.js';
 import { renderKanbanShell } from './kanban.js';
 import { renderWizardShell } from './wizard.js';
 import { checkShellFitness } from './fitness.js';
+import { composeFromPrompt, type ComposerResult } from '../composer/composer.js';
 import { getBoilerplateFiles } from '../templates/boilerplate.js';
 import { logger } from '../utils/logger.js';
 
@@ -22,6 +23,8 @@ export interface ShellRenderResult {
   spec: AppSpec;
   shell: 'universal' | 'dashboard' | 'landing' | 'kanban' | 'wizard';
   files: { path: string; content: string }[];
+  /** Set when the composer lane was used instead of a shell */
+  composerResult?: ComposerResult;
 }
 
 /**
@@ -73,12 +76,53 @@ export async function renderFromPrompt(
   prompt: string,
   llmExtract?: (systemPrompt: string, userPrompt: string) => Promise<string>
 ): Promise<ShellRenderResult | null> {
-  // ── FITNESS GATE: Check if shells can serve this prompt ──
+  // ── FITNESS GATE: Check if shells or composer can serve this prompt ──
   const fitness = checkShellFitness(prompt);
   if (fitness.recommendation === 'llm') {
     logger.info(`[FITNESS GATE] Prompt escapes to LLM (score: ${fitness.score}/100, reason: ${fitness.reason})`);
     return null;  // Signal to caller: use full LLM generation
   }
+
+  // ── COMPOSER LANE: If fitness says composer, use component kits ──
+  if (fitness.recommendation === 'composer') {
+    logger.info(`[FITNESS GATE] Composer lane selected (score: ${fitness.score}/100, reason: ${fitness.reason})`);
+
+    // Get spec for composer (try LLM extraction first, then fallback)
+    let spec: AppSpec | null = null;
+    if (llmExtract) {
+      try {
+        const extractionPrompt = getSpecExtractionPrompt(prompt);
+        const raw = await llmExtract(
+          'You are a product architect. Output ONLY valid JSON. No explanation, no markdown fences.',
+          extractionPrompt
+        );
+        spec = parseAppSpec(raw);
+      } catch (err) {
+        logger.warn(`LLM spec extraction failed for composer: ${(err as Error).message}`);
+      }
+    }
+    if (!spec) {
+      spec = generateFallbackSpec(prompt);
+    }
+
+    const composerResult = composeFromPrompt(prompt, spec);
+    if (composerResult) {
+      logger.info(`[COMPOSER] Kit rendered: ${composerResult.kit} | App: ${composerResult.spec.appName}`);
+      return {
+        appTsx: composerResult.appTsx,
+        readmeMd: composerResult.readmeMd,
+        spec: composerResult.spec,
+        shell: 'universal', // Nominal shell type for type compat
+        files: composerResult.files,
+        composerResult,
+      };
+    }
+
+    // Composer failed → fall through to LLM
+    logger.warn(`[COMPOSER] Failed to compose, falling through to LLM`);
+    return null;
+  }
+
   logger.info(`[FITNESS GATE] Shell path approved (score: ${fitness.score}/100)`);
 
   let spec: AppSpec | null = null;

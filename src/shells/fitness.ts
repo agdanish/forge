@@ -26,15 +26,17 @@
 
 import { logger } from '../utils/logger.js';
 import { validateCapabilities, type CapabilityValidationResult } from './capabilities.js';
+import { canCompose, type ComposerScoreResult } from '../composer/composer.js';
 
 export interface FitnessResult {
   score: number;           // 0-100, higher = better shell fit
-  recommendation: 'shell' | 'llm';
+  recommendation: 'shell' | 'llm' | 'composer';
   reason: string;
   matchedShellKeywords: number;
   matchedEscapeKeywords: number;
   detectedArchetype: string | null;
   capabilityValidation: CapabilityValidationResult | null;
+  composerScoring: ComposerScoreResult | null;
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -490,21 +492,35 @@ export function checkShellFitness(prompt: string): FitnessResult {
   }
 
   // ════════════════════════════════════════════════════
-  // FINAL DECISION
+  // FINAL DECISION (3-lane: shell → composer → llm)
   // ════════════════════════════════════════════════════
 
   score = Math.max(0, Math.min(100, score));
 
-  const recommendation: 'shell' | 'llm' = score >= THRESHOLD ? 'shell' : 'llm';
+  let recommendation: 'shell' | 'llm' | 'composer' = score >= THRESHOLD ? 'shell' : 'llm';
+  let composerScoring: ComposerScoreResult | null = null;
+
+  // If routing to LLM, check if composer lane can handle it first
+  if (recommendation === 'llm') {
+    const composerCheck = canCompose(prompt);
+    composerScoring = composerCheck.scoring;
+    if (composerCheck.canHandle) {
+      recommendation = 'composer';
+      reasons.push(`composer lane: ${composerCheck.scoring.explanation}`);
+    }
+  }
 
   const reason = reasons.length > 0
     ? reasons.join('; ')
     : recommendation === 'shell'
     ? `${matchedShellKeywords} shell signals, ${matchedEscapeKeywords} escape signals`
+    : recommendation === 'composer'
+    ? `Composer lane: kit matched`
     : `Low fitness: ${matchedEscapeKeywords} escape signals outweigh ${matchedShellKeywords} shell signals`;
 
   const capExplanation = capabilityValidation ? ` | Cap: ${capabilityValidation.explanation}` : '';
-  logger.info(`[FITNESS] Score: ${score}/100 → ${recommendation.toUpperCase()} | Archetype: ${detectedArchetype || 'none'} | Shell: ${matchedShellKeywords} | Escape: ${matchedEscapeKeywords} | ${reason}${capExplanation}`);
+  const composerExplanation = composerScoring ? ` | Composer: ${composerScoring.explanation}` : '';
+  logger.info(`[FITNESS] Score: ${score}/100 → ${recommendation.toUpperCase()} | Archetype: ${detectedArchetype || 'none'} | Shell: ${matchedShellKeywords} | Escape: ${matchedEscapeKeywords} | ${reason}${capExplanation}${composerExplanation}`);
 
   return {
     score,
@@ -514,5 +530,6 @@ export function checkShellFitness(prompt: string): FitnessResult {
     matchedEscapeKeywords,
     detectedArchetype,
     capabilityValidation,
+    composerScoring,
   };
 }

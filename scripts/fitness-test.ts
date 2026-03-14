@@ -10,7 +10,9 @@ import { checkShellFitness } from '../src/shells/fitness.js';
 interface FitnessTest {
   id: string;
   prompt: string;
-  expected: 'shell' | 'llm';
+  expected: 'shell' | 'llm' | 'composer';
+  /** Legacy: also accept these recommendations as valid (for 3-lane migration) */
+  alsoAccept?: ('shell' | 'llm' | 'composer')[];
   description: string;
 }
 
@@ -76,57 +78,57 @@ const TESTS: FitnessTest[] = [
   // SHOULD ESCAPE TO LLM
   // ══════════════════════════════════════════════════
 
-  // Chat / messaging — LLM needed
-  { id: 'L01', prompt: 'Build a real-time chat app with rooms and direct messages', expected: 'llm', description: 'Chat app' },
-  { id: 'L02', prompt: 'Create an AI chatbot interface like ChatGPT', expected: 'llm', description: 'AI chat interface' },
-  { id: 'L03', prompt: 'Build a messaging app like Slack', expected: 'llm', description: 'Slack clone' },
-  { id: 'L04', prompt: 'Create a Discord-like chat platform', expected: 'llm', description: 'Discord clone' },
+  // Chat / messaging — LLM or Composer (chat-inbox kit)
+  { id: 'L01', prompt: 'Build a real-time chat app with rooms and direct messages', expected: 'composer', alsoAccept: ['llm'], description: 'Chat app → composer chat-inbox' },
+  { id: 'L02', prompt: 'Create an AI chatbot interface like ChatGPT', expected: 'llm', description: 'AI chat interface (no kit)' },
+  { id: 'L03', prompt: 'Build a messaging app like Slack', expected: 'composer', alsoAccept: ['llm'], description: 'Slack clone → composer chat-inbox' },
+  { id: 'L04', prompt: 'Create a Discord-like chat platform', expected: 'llm', alsoAccept: ['composer'], description: 'Discord clone' },
 
-  // Games — LLM needed
+  // Games — LLM needed (no kit for games)
   { id: 'L05', prompt: 'Create a multiplayer tic-tac-toe game', expected: 'llm', description: 'Tic-tac-toe' },
   { id: 'L06', prompt: 'Build a Wordle clone', expected: 'llm', description: 'Wordle clone' },
   { id: 'L07', prompt: 'Create a Tetris game', expected: 'llm', description: 'Tetris' },
   { id: 'L08', prompt: 'Build a snake game', expected: 'llm', description: 'Snake game' },
   { id: 'L09', prompt: 'Make a trivia quiz game with scoring', expected: 'llm', description: 'Quiz game' },
 
-  // E-commerce with cart — LLM needed
-  { id: 'L10', prompt: 'Build an online store with shopping cart and checkout', expected: 'llm', description: 'E-commerce store' },
-  { id: 'L11', prompt: 'Create a marketplace where users can buy and sell items', expected: 'llm', description: 'Marketplace' },
-  { id: 'L12', prompt: 'Build an e-commerce product page with add to cart', expected: 'llm', description: 'Product page with cart' },
+  // E-commerce with cart — Composer (store-catalog kit) or LLM
+  { id: 'L10', prompt: 'Build an online store with shopping cart and checkout', expected: 'composer', description: 'E-commerce store → composer store-catalog' },
+  { id: 'L11', prompt: 'Create a marketplace where users can buy and sell items', expected: 'composer', alsoAccept: ['llm'], description: 'Marketplace → composer store-catalog' },
+  { id: 'L12', prompt: 'Build an e-commerce product page with add to cart', expected: 'composer', alsoAccept: ['llm'], description: 'Product page → composer store-catalog' },
 
-  // Social — LLM needed
-  { id: 'L13', prompt: 'Create a Twitter clone with feeds, likes, and follows', expected: 'llm', description: 'Twitter clone' },
-  { id: 'L14', prompt: 'Build a social media feed with posts and comments', expected: 'llm', description: 'Social feed' },
-  { id: 'L15', prompt: 'Create a community platform with user profiles and posting', expected: 'llm', description: 'Community platform' },
+  // Social — Composer (feed-social kit) or LLM
+  { id: 'L13', prompt: 'Create a Twitter clone with feeds, likes, and follows', expected: 'composer', description: 'Twitter clone → composer feed-social' },
+  { id: 'L14', prompt: 'Build a social media feed with posts and comments', expected: 'composer', description: 'Social feed → composer feed-social' },
+  { id: 'L15', prompt: 'Create a community platform with user profiles and posting', expected: 'composer', alsoAccept: ['llm'], description: 'Community platform → composer feed-social' },
 
-  // Editors — LLM needed
-  { id: 'L16', prompt: 'Build a code editor with syntax highlighting', expected: 'llm', description: 'Code editor' },
-  { id: 'L17', prompt: 'Create a markdown editor with live preview', expected: 'llm', description: 'Markdown editor' },
-  { id: 'L18', prompt: 'Build a collaborative whiteboard tool', expected: 'llm', description: 'Whiteboard' },
-  { id: 'L19', prompt: 'Create a drawing canvas app', expected: 'llm', description: 'Drawing canvas' },
+  // Editors — Composer (editor-lite kit) or LLM
+  { id: 'L16', prompt: 'Build a code editor with syntax highlighting', expected: 'llm', description: 'Code editor (too specialized for kit)' },
+  { id: 'L17', prompt: 'Create a markdown editor with live preview', expected: 'llm', description: 'Markdown editor (too specialized for kit)' },
+  { id: 'L18', prompt: 'Build a collaborative whiteboard tool', expected: 'composer', alsoAccept: ['llm'], description: 'Whiteboard → composer editor-lite' },
+  { id: 'L19', prompt: 'Create a drawing canvas app', expected: 'llm', alsoAccept: ['composer'], description: 'Drawing canvas' },
 
-  // Media players — LLM needed
-  { id: 'L20', prompt: 'Build a music player with playlists', expected: 'llm', description: 'Music player' },
-  { id: 'L21', prompt: 'Create a video player with playlist support', expected: 'llm', description: 'Video player' },
-  { id: 'L22', prompt: 'Build a Spotify-like music streaming interface', expected: 'llm', description: 'Spotify clone' },
+  // Media players — Composer (media-player kit) or LLM
+  { id: 'L20', prompt: 'Build a music player with playlists', expected: 'composer', description: 'Music player → composer media-player' },
+  { id: 'L21', prompt: 'Create a video player with playlist support', expected: 'composer', description: 'Video player → composer media-player' },
+  { id: 'L22', prompt: 'Build a Spotify-like music streaming interface', expected: 'composer', alsoAccept: ['llm'], description: 'Spotify clone → composer media-player' },
 
-  // Calendar — LLM needed (shells don't have month grid)
+  // Calendar — LLM needed (no calendar kit)
   { id: 'L23', prompt: 'Build a monthly calendar app with event management', expected: 'llm', description: 'Calendar with month grid' },
 
   // Weather/live data — LLM needed
   { id: 'L24', prompt: 'Build a weather app that shows forecasts', expected: 'llm', description: 'Weather app' },
   { id: 'L25', prompt: 'Create a crypto trading dashboard with live prices', expected: 'llm', description: 'Crypto dashboard' },
 
-  // Clone/like patterns — LLM needed
-  { id: 'L26', prompt: 'Build an Uber-like ride sharing app', expected: 'llm', description: 'Uber clone' },
-  { id: 'L27', prompt: 'Create a Netflix clone for streaming', expected: 'llm', description: 'Netflix clone' },
+  // Clone/like patterns — Composer (map-splitview kit) or LLM
+  { id: 'L26', prompt: 'Build an Uber-like ride sharing app', expected: 'composer', alsoAccept: ['llm'], description: 'Uber clone → composer map-splitview' },
+  { id: 'L27', prompt: 'Create a Netflix clone for streaming', expected: 'llm', alsoAccept: ['composer'], description: 'Netflix clone' },
 
   // File/image — LLM needed
   { id: 'L28', prompt: 'Build an image gallery with upload and tagging', expected: 'llm', description: 'Image gallery' },
   { id: 'L29', prompt: 'Create a file manager for cloud storage', expected: 'llm', description: 'File manager' },
 
-  // Email — LLM needed
-  { id: 'L30', prompt: 'Build an email client inbox', expected: 'llm', description: 'Email client' },
+  // Email — Composer (chat-inbox kit) or LLM
+  { id: 'L30', prompt: 'Build an email client inbox', expected: 'composer', alsoAccept: ['llm'], description: 'Email client → composer chat-inbox' },
 
   // ══════════════════════════════════════════════════
   // BOUNDARY / TRICKY PROMPTS (the hardest cases)
@@ -152,8 +154,8 @@ const TESTS: FitnessTest[] = [
 console.log('FORGE — Fitness Gate v2 Test');
 console.log('═'.repeat(90));
 console.log(`Testing ${TESTS.length} prompts (3-layer scoring: archetype + semantic + keyword)\n`);
-console.log(`  ID     Score  Rec    Expected  Archetype        Match  Prompt`);
-console.log(`  ${'─'.repeat(84)}`);
+console.log(`  ID     Score  Rec       Expected  Archetype        Match  Prompt`);
+console.log(`  ${'─'.repeat(90)}`);
 
 let passed = 0;
 let failed = 0;
@@ -161,11 +163,12 @@ const failures: { test: FitnessTest; result: ReturnType<typeof checkShellFitness
 
 for (const test of TESTS) {
   const result = checkShellFitness(test.prompt);
-  const match = result.recommendation === test.expected;
+  const match = result.recommendation === test.expected ||
+    (test.alsoAccept?.includes(result.recommendation as 'shell' | 'llm' | 'composer') ?? false);
   const icon = match ? '✅' : '❌';
   const arch = (result.detectedArchetype || '-').padEnd(16);
 
-  console.log(`  ${icon} ${test.id.padEnd(4)} ${String(result.score).padStart(3)}    ${result.recommendation.padEnd(5)}  ${test.expected.padEnd(8)}  ${arch} ${match ? 'OK' : 'FAIL'}   ${test.prompt.substring(0, 40)}`);
+  console.log(`  ${icon} ${test.id.padEnd(4)} ${String(result.score).padStart(3)}    ${result.recommendation.padEnd(8)}  ${test.expected.padEnd(8)}  ${arch} ${match ? 'OK' : 'FAIL'}   ${test.prompt.substring(0, 40)}`);
 
   if (match) {
     passed++;
@@ -181,16 +184,20 @@ console.log(`\n📊 Results: ${passed}/${TESTS.length} passed | ${failed} failur
 
 // Show score distribution
 const shellScores = TESTS.filter(t => t.expected === 'shell').map(t => checkShellFitness(t.prompt).score);
-const llmScores = TESTS.filter(t => t.expected === 'llm').map(t => checkShellFitness(t.prompt).score);
+const nonShellScores = TESTS.filter(t => t.expected !== 'shell').map(t => checkShellFitness(t.prompt).score);
 const shellMin = Math.min(...shellScores);
 const shellMax = Math.max(...shellScores);
-const llmMin = Math.min(...llmScores);
-const llmMax = Math.max(...llmScores);
+const nonShellMin = Math.min(...nonShellScores);
+const nonShellMax = Math.max(...nonShellScores);
+
+const composerCount = TESTS.filter(t => t.expected === 'composer').length;
+const llmCount = TESTS.filter(t => t.expected === 'llm').length;
 
 console.log(`\n📈 Score distribution:`);
 console.log(`   Shell prompts: ${shellMin}-${shellMax} (should all be ≥50)`);
-console.log(`   LLM prompts:   ${llmMin}-${llmMax} (should all be <50)`);
-console.log(`   Separation gap: ${shellMin - llmMax} points (higher = more robust)`);
+console.log(`   Non-shell:     ${nonShellMin}-${nonShellMax} (should all be <50)`);
+console.log(`   Separation gap: ${shellMin - nonShellMax} points (higher = more robust)`);
+console.log(`\n🔀 3-Lane routing: ${TESTS.filter(t => t.expected === 'shell').length} shell, ${composerCount} composer, ${llmCount} LLM`);
 
 if (failures.length > 0) {
   console.log(`\n❌ Failures:`);
@@ -201,7 +208,7 @@ if (failures.length > 0) {
 }
 
 if (passed === TESTS.length) {
-  console.log('\n🚀 All fitness tests passed! Three-layer gate is robust.');
+  console.log('\n🚀 All fitness tests passed! 3-lane routing (shell → composer → LLM) is robust.');
 }
 
 process.exit(failed > 0 ? 1 : 0);

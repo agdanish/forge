@@ -30,7 +30,9 @@
     "test:capability": "tsx scripts/capability-test.ts",
     "test:weird": "tsx scripts/weird-prompt-test.ts",
     "test:exploratory": "tsx scripts/exploratory-validation.ts",
-    "test:all-offline": "tsx scripts/smoke-test.ts && tsx scripts/fitness-test.ts && tsx scripts/adversarial25-test.ts && tsx scripts/capability-test.ts && tsx scripts/weird-prompt-test.ts"
+    "test:composer": "tsx scripts/composer-test.ts",
+    "test:composer-browser": "tsx scripts/composer-browser-test.ts",
+    "test:all-offline": "tsx scripts/smoke-test.ts && tsx scripts/fitness-test.ts && tsx scripts/adversarial25-test.ts && tsx scripts/capability-test.ts && tsx scripts/weird-prompt-test.ts && tsx scripts/composer-test.ts"
   },
   "keywords": [
     "ai",

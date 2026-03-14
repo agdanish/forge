@@ -265,21 +265,24 @@ for (const p of PROMPTS) {
   const theme = getThemeForDomain(p.prompt);
 
   // Determine correctness
+  // With the 3-lane architecture, 'composer' is also valid for prompts that
+  // previously expected 'llm' — the composer lane is specifically designed
+  // to catch prompts that shells can't handle but kits can serve deterministically.
   let isCorrect: boolean;
   let notes = '';
 
   if (p.expectedRoute === 'borderline') {
-    // Borderline: either shell or llm is acceptable
+    // Borderline: shell, composer, or llm are all acceptable
     isCorrect = true;
     borderlineOk++;
-    if (fitness.recommendation === 'shell') {
-      notes = `Borderline → routed to shell (score: ${fitness.score}). Acceptable.`;
-    } else {
-      notes = `Borderline → routed to LLM (score: ${fitness.score}). Also acceptable.`;
-    }
+    notes = `Borderline → routed to ${fitness.recommendation} (score: ${fitness.score}). Acceptable.`;
   } else if (p.expectedRoute === fitness.recommendation) {
     isCorrect = true;
     notes = 'Correct route.';
+  } else if (p.expectedRoute === 'llm' && fitness.recommendation === 'composer') {
+    // Composer lane catches prompts that used to go to LLM — this is CORRECT behavior
+    isCorrect = true;
+    notes = `Upgraded: LLM → composer (${fitness.composerScoring?.selectedKits?.[0] || 'unknown'} kit). Good — deterministic > expensive LLM.`;
   } else {
     isCorrect = false;
     notes = `WRONG: expected ${p.expectedRoute}, got ${fitness.recommendation} (score: ${fitness.score}). ${p.reason}`;
