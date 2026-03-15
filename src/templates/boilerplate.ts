@@ -137,5 +137,43 @@ createRoot(document.getElementById('root')!).render(<StrictMode><App /></StrictM
 ::-webkit-scrollbar-thumb:hover { background: #4b5563; }
 `,
     },
+    {
+      path: 'README.md',
+      content: `# App
+
+Interactive web application built with React 18 + TypeScript + Tailwind CSS.
+
+## Quick Start
+
+\`\`\`bash
+npm install
+npm run dev
+\`\`\`
+
+Open [http://localhost:5173](http://localhost:5173) in your browser.
+
+## Features
+
+- Interactive dashboard with real-time data
+- Search, filter, and sort functionality
+- Add/Edit/Delete operations
+- Responsive design (mobile + desktop)
+- Dark premium theme with glassmorphism effects
+
+## Tech Stack
+
+- React 18 + TypeScript
+- Vite (fast dev server + build)
+- Tailwind CSS (utility-first styling)
+- Lucide React (icons)
+- Recharts (data visualization)
+
+## Build
+
+\`\`\`bash
+npm run build
+\`\`\`
+`,
+    },
   ];
 }

@@ -166,24 +166,25 @@ The following files exist on disk already. Calling create_file for them wastes t
 ✅ tsconfig.json       (strict TypeScript, noEmit)
 ✅ index.html          (Vite entry with <div id="root">)
 ✅ src/main.tsx        (createRoot + StrictMode + App import)
-✅ src/index.css       (@tailwind base/components/utilities)
+✅ src/index.css       (@tailwind base/components/utilities + animations)
+✅ README.md           (generic README with setup instructions — DO NOT RECREATE)
 \`\`\`
 
-## YOUR JOB: CREATE ONLY THESE 2–3 FILES (maximum!)
+## YOUR JOB: CREATE ONLY 1 FILE — src/App.tsx
 
 \`\`\`
-src/App.tsx        ← REQUIRED — ALL logic, state, TypeScript types, root component
-README.md          ← REQUIRED — app name, features, "npm install && npm run dev"
-src/components.tsx ← OPTIONAL — only if App.tsx would exceed ~400 lines
+src/App.tsx        ← REQUIRED — ALL logic, state, TypeScript types, root component in ONE file
 \`\`\`
+README.md is ALREADY pre-created. Do NOT create it.
 
 ⚡ SPEED RULES (CRITICAL — speed is a scored hackathon criterion):
-1. Maximum 3 create_file calls total. Then immediately finalize_project.
-2. NEVER create src/types.ts — define all interfaces inline at top of App.tsx.
-3. NEVER create separate component files — everything in App.tsx or one components.tsx.
-4. NEVER create hooks/ folder, utils/ folder, or any additional files.
-5. react, react-dom, lucide-react, and recharts are ALL pre-installed. You should NOT need to overwrite package.json. If you absolutely must add another package, overwrite package.json as one of your 3 allowed files.
-6. PERFECT SUBMISSION = App.tsx + README.md + finalize_project (2 create_file calls).
+1. Create src/App.tsx then IMMEDIATELY call finalize_project. That's it. TWO tool calls total.
+2. NEVER create README.md — it already exists.
+3. NEVER create src/types.ts — define all interfaces inline at top of App.tsx.
+4. NEVER create separate component files — everything in App.tsx.
+5. NEVER create hooks/ folder, utils/ folder, or any additional files.
+6. react, react-dom, lucide-react, and recharts are ALL pre-installed. Do NOT overwrite package.json.
+7. PERFECT SUBMISSION = create_file(src/App.tsx) + finalize_project = 2 tool calls ONLY.
 
 ## CODE QUALITY RULES
 
@@ -195,6 +196,29 @@ src/components.tsx ← OPTIONAL — only if App.tsx would exceed ~400 lines
 6. TypeScript strict mode — no 'any' types, all props typed
 7. Local state only (useState, useReducer) — no external state libs needed
 
+## SCORING TARGETS (hit EVERY threshold for maximum score)
+
+The AI judge scores your output with automated signal detection. Hit ALL these thresholds:
+
+**Functionality (50% weight — ≥5/10 REQUIRED to qualify):**
+- F1: Include ≥5 interactive elements total (<button>, <input>, <select>) → aim for 8+
+- F2: Use ≥4 useState calls → aim for 6+ (search, filter, modal, form fields, view toggle, selection)
+- F3: Include ≥5 event handler attributes (onClick=, onChange=, onSubmit=, onKeyDown=) → aim for 8+
+- F4: ZERO placeholders ("TODO", "PLACEHOLDER", "COMING SOON", "Lorem ipsum") and ZERO empty handlers (onClick={() => {}})
+- F5: App.tsx must be >5000 characters → include rich seed data, multiple views, detailed UI
+
+**Design (30% weight):**
+- D1: Use ≥30 className attributes across elements → aim for 50+ (every div, button, span should be styled)
+- D2: Import ≥5 icons from lucide-react → aim for 10+ (Search, Plus, Edit, Trash2, Settings, Home, Menu, X, Check, Filter, etc.)
+- D3: Use BOTH flex/grid layout AND responsive breakpoints (sm:, md:, lg:) → must have both
+- D4: Use ≥8 distinct Tailwind color classes (bg-gray-900, bg-indigo-600, text-white, text-gray-400, text-indigo-400, bg-red-600, text-green-400, bg-yellow-900, etc.) → aim for 12+
+- D5: Use ≥3 of these 4 polish signals: rounded-*, shadow-*, transition-*, hover:* → use ALL 4
+
+**Speed (20% weight):**
+- Create ONLY App.tsx + README.md → call finalize_project immediately
+- Never recreate boilerplate files
+- Keep it to 2 create_file calls maximum
+
 ## SELF-REVIEW CHECKLIST (MANDATORY — verify before calling finalize_project)
 
 □ App.tsx: every button has a real onClick handler (no empty arrow functions)
@@ -202,11 +226,11 @@ src/components.tsx ← OPTIONAL — only if App.tsx would exceed ~400 lines
 □ App.tsx: all lucide-react icons are imported at the top
 □ App.tsx: only import from react, react-dom, lucide-react, recharts (all pre-installed)
 □ App.tsx: all TypeScript interfaces defined, no implicit 'any'
-□ README.md: has app name, feature list, "npm install && npm run dev"
-□ If you created src/components.tsx: it is imported in App.tsx
+□ App.tsx: ≥5 buttons + ≥2 inputs + ≥4 useState + ≥5 event handlers + >5000 chars
+□ App.tsx: ≥30 className attributes, ≥5 lucide icons, responsive classes, all 4 polish signals
+□ README.md: ALREADY EXISTS — do NOT create it
 
-If you find any issue, fix it with ONE more create_file call, then finalize immediately.
-DO NOT create additional files — fix issues inline in the existing files.
+If App.tsx has issues, fix with ONE more create_file call, then finalize immediately.
 
 ## PREMIUM UI POLISH (what separates winners from also-rans)
 
