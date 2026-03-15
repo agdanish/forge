@@ -205,6 +205,7 @@ README.md is ALREADY pre-created. Do NOT create it.
 5. NEVER create hooks/ folder, utils/ folder, or any additional files.
 6. react, react-dom, lucide-react, and recharts are ALL pre-installed. Do NOT overwrite package.json.
 7. PERFECT SUBMISSION = create_file(src/App.tsx) + finalize_project = 2 tool calls ONLY.
+8. Keep App.tsx between 200-350 lines. Be CONCISE — use compact JSX, short variable names for seed data. Do NOT write 500+ line files. Quality over quantity. A tight 250-line app with all features is better than a bloated 600-line app that gets truncated.
 
 ## CODE QUALITY RULES
 
