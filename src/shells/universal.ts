@@ -127,7 +127,7 @@ export default function App() {
   const KpiSection = () => (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
       {INITIAL_KPIS.map((kpi, i) => (
-        <div key={i} className="${t.card} ${t.cardBorder} border rounded-xl p-4">
+        <div key={i} className="${t.card} ${t.cardBorder} border rounded-xl p-4 card-hover" style={{ animationDelay: \`\${i * 80}ms\` }}>
           <p className="${t.textMuted} text-xs font-medium uppercase tracking-wide">{kpi.label}</p>
           <p className="${t.text} text-2xl font-bold mt-1">{kpi.value}</p>
           <div className={\`flex items-center gap-1 mt-2 text-sm \${kpi.trendUp ? '${t.success}' : '${t.danger}'}\`}>
@@ -152,7 +152,7 @@ export default function App() {
             </div>
             <div className="space-y-2">
               {filtered.filter(i => i.status === status).map(item => (
-                <div key={item.id} onClick={() => setSelected(item)} className="${isDark ? 'bg-gray-800/50 hover:bg-gray-800 border-gray-700/50' : 'bg-gray-50 hover:bg-gray-100 border-gray-200'} border rounded-lg p-3 cursor-pointer transition-colors">
+                <div key={item.id} onClick={() => setSelected(item)} className="${isDark ? 'bg-gray-800/50 hover:bg-gray-800 border-gray-700/50' : 'bg-gray-50 hover:bg-gray-100 border-gray-200'} border rounded-lg p-3 cursor-pointer card-hover">
                   <p className="${t.text} text-sm font-medium">{item.name}</p>
                   <p className="${t.textMuted} text-xs mt-1 line-clamp-2">{item.description}</p>
                   <div className="flex items-center justify-between mt-2">

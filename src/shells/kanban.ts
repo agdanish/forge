@@ -182,7 +182,7 @@ export default function App() {
                 <div className="space-y-2.5">
                   {(stageGroups[stage] || []).map((item, idx) => (
                     <div key={item.id}
-                      className="${t.card} border ${t.cardBorder} rounded-xl p-3 cursor-pointer hover:border-${isDark ? 'indigo' : 'blue'}-500/50 transition-all hover:shadow-lg group"
+                      className="${t.card} border ${t.cardBorder} rounded-xl p-3 cursor-pointer card-hover group"
                       onClick={() => setSelectedItem(item)}>
                       <div className="flex items-start justify-between mb-2">
                         <span className="font-medium text-sm leading-tight flex-1">{item.name}</span>

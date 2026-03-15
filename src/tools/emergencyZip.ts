@@ -386,8 +386,8 @@ export default function App() {
                   { label: 'Active', value: stats.active, icon: AlertCircle, trend: '+8%', up: true, color: 'blue' },
                   { label: 'Completed', value: stats.completed, icon: Check, trend: '+24%', up: true, color: 'emerald' },
                   { label: 'Total Value', value: \`$\${(stats.totalValue / 1000).toFixed(0)}k\`, icon: TrendingUp, trend: '-3%', up: false, color: 'purple' },
-                ].map(({ label, value, icon: Icon, trend, up, color }) => (
-                  <div key={label} className="bg-gray-900 border border-gray-800 rounded-2xl p-6 hover:border-gray-700 transition-all">
+                ].map(({ label, value, icon: Icon, trend, up, color }, idx) => (
+                  <div key={label} className="bg-gray-900 border border-gray-800 rounded-2xl p-6 card-hover animate-slide-up" style={{ animationDelay: \`\${idx * 80}ms\` }}>
                     <div className="flex items-center justify-between mb-4">
                       <span className="text-sm text-gray-400">{label}</span>
                       <Icon className={\`w-5 h-5 text-\${color}-400\`} />
@@ -450,7 +450,7 @@ export default function App() {
           {activeView === 'list' && (
             <div className="space-y-3">
               {filtered.map(item => (
-                <div key={item.id} className="bg-gray-900 border border-gray-800 rounded-xl p-4 hover:border-gray-700 transition-all flex items-center gap-4">
+                <div key={item.id} className="bg-gray-900 border border-gray-800 rounded-xl p-4 card-hover flex items-center gap-4">
                   <button onClick={() => handleStatusChange(item.id, item.status === 'completed' ? 'active' : 'completed')}
                     className={\`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all \${item.status === 'completed' ? 'bg-emerald-600 border-emerald-600' : 'border-gray-600 hover:border-indigo-500'}\`}>
                     {item.status === 'completed' && <Check className="w-4 h-4" />}
@@ -482,7 +482,7 @@ export default function App() {
                   <div className="space-y-3">
                     {items.filter(i => i.status === status).map(item => (
                       <div key={item.id} onClick={() => setSelectedItem(item)}
-                        className="bg-gray-900 border border-gray-800 rounded-lg p-3 hover:border-gray-700 cursor-pointer transition-all">
+                        className="bg-gray-900 border border-gray-800 rounded-lg p-3 cursor-pointer card-hover">
                         <p className="text-sm font-medium mb-2">{item.name}</p>
                         <div className="flex items-center justify-between">
                           <span className={\`px-2 py-0.5 rounded-full text-xs font-medium border \${priorityColor(item.priority)}\`}>{item.priority}</span>
@@ -551,8 +551,8 @@ export default function App() {
 
       {/* Add/Edit Modal */}
       {showForm && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={resetForm}>
-          <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6 w-full max-w-md shadow-2xl" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50" onClick={resetForm}>
+          <div className="bg-gray-900/95 border border-gray-700 rounded-2xl p-6 w-full max-w-md shadow-2xl glass animate-scale-in" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-lg font-semibold">{editingItem ? 'Edit Item' : 'Add New Item'}</h2>
               <button onClick={resetForm} className="text-gray-400 hover:text-white"><X className="w-5 h-5" /></button>

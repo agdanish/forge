@@ -177,7 +177,7 @@ export default function App() {
           {FEATURES.map((f, i) => {
             const Icon = iconMap[f.icon] || Zap;
             return (
-              <div key={i} className="group ${t.card} border ${t.cardBorder} rounded-xl p-6 transition-all hover:scale-[1.02] hover:shadow-lg cursor-default">
+              <div key={i} className="group ${t.card} border ${t.cardBorder} rounded-xl p-6 card-hover cursor-default animate-slide-up" style={{ animationDelay: \`\${i * 100}ms\` }}>
                 <div className="w-12 h-12 rounded-xl bg-gradient-to-br ${t.gradient} bg-opacity-10 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
                   <Icon className="w-6 h-6 ${t.accent}" />
                 </div>

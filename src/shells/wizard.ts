@@ -111,7 +111,7 @@ export default function App() {
               <Sparkles className="w-4 h-4 text-white" />
             </div>
             <div>
-              <h1 className="text-lg font-bold">${spec.appName}</h1>
+              <h1 className="text-lg font-bold ${isDark ? 'bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent' : ''}">${spec.appName}</h1>
               <p className="${t.textMuted} text-xs">${spec.tagline}</p>
             </div>
           </div>
@@ -163,7 +163,7 @@ export default function App() {
             </div>
 
             {/* Step Content */}
-            <div className="${t.card} border ${t.cardBorder} rounded-2xl p-6 sm:p-8 mb-6">
+            <div className="${t.card} border ${t.cardBorder} rounded-2xl p-6 sm:p-8 mb-6 glass">
               <h2 className="text-xl font-bold mb-2">{STEPS[currentStep]}</h2>
               <p className="${t.textMuted} text-sm mb-6">
                 {isReviewStep
@@ -206,7 +206,7 @@ export default function App() {
                         const isSelected = (selections[currentStep] || []).includes(option);
                         return (
                           <button key={option} onClick={() => toggleSelection(currentStep, option)}
-                            className={\`p-4 rounded-xl border-2 text-left transition-all \${
+                            className={\`p-4 rounded-xl border-2 text-left card-hover \${
                               isSelected
                                 ? '${isDark ? 'border-indigo-500 bg-indigo-500/10' : 'border-blue-500 bg-blue-50'}'
                                 : '${t.cardBorder} hover:border-${isDark ? 'indigo' : 'blue'}-500/50 ${t.card}'
@@ -266,7 +266,7 @@ export default function App() {
             </div>
 
             {/* Recommendation Card */}
-            <div className="${t.card} border ${t.cardBorder} rounded-2xl p-6 sm:p-8 mb-6">
+            <div className="${t.card} border ${t.cardBorder} rounded-2xl p-6 sm:p-8 mb-6 glass animate-scale-in">
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <p className="${t.textMuted} text-xs font-medium uppercase tracking-wider mb-1">Recommended Plan</p>
@@ -282,7 +282,7 @@ export default function App() {
               {/* Match breakdown */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
                 {KPIS.map((kpi, i) => (
-                  <div key={i} className="p-3 rounded-xl ${isDark ? 'bg-gray-800/50' : 'bg-gray-50'}">
+                  <div key={i} className="p-3 rounded-xl ${isDark ? 'bg-gray-800/50' : 'bg-gray-50'} animate-slide-up" style={{ animationDelay: \`\${i * 100}ms\` }}>
                     <p className="${t.textMuted} text-xs">{kpi.label}</p>
                     <p className="font-bold text-lg mt-1">{kpi.value}</p>
                     <p className={\`text-xs mt-0.5 \${kpi.trendUp ? '${isDark ? 'text-emerald-400' : 'text-emerald-600'}' : 'text-red-400'}\`}>{kpi.trend}</p>

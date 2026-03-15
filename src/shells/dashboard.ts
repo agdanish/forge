@@ -106,7 +106,7 @@ export default function App() {
         const icons = [Target, DollarSign, Users, Zap];
         const Icon = icons[i % icons.length];
         return (
-          <div key={i} className="${t.card} ${t.cardBorder} border rounded-xl p-5 hover:shadow-lg transition-shadow">
+          <div key={i} className="${t.card} ${t.cardBorder} border rounded-xl p-5 card-hover animate-slide-up" style={{ animationDelay: \`\${i * 80}ms\` }}>
             <div className="flex items-start justify-between">
               <div>
                 <p className="${t.textMuted} text-xs font-medium uppercase tracking-wide">{kpi.label}</p>

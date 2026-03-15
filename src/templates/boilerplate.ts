@@ -118,23 +118,64 @@ createRoot(document.getElementById('root')!).render(<StrictMode><App /></StrictM
 @tailwind utilities;
 
 @layer utilities {
+  /* Entrance animations */
   @keyframes fadeIn {
     from { opacity: 0; transform: translateY(8px); }
     to { opacity: 1; transform: translateY(0); }
   }
-  .animate-fade-in {
-    animation: fadeIn 0.4s ease-out forwards;
+  @keyframes slideUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to { opacity: 1; transform: translateY(0); }
   }
+  @keyframes scaleIn {
+    from { opacity: 0; transform: scale(0.95); }
+    to { opacity: 1; transform: scale(1); }
+  }
+  .animate-fade-in { animation: fadeIn 0.4s ease-out forwards; }
+  .animate-slide-up { animation: slideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards; opacity: 0; }
+  .animate-scale-in { animation: scaleIn 0.3s ease-out forwards; opacity: 0; }
   .animate-fade-in-delay-1 { animation: fadeIn 0.4s ease-out 0.1s forwards; opacity: 0; }
   .animate-fade-in-delay-2 { animation: fadeIn 0.4s ease-out 0.2s forwards; opacity: 0; }
   .animate-fade-in-delay-3 { animation: fadeIn 0.4s ease-out 0.3s forwards; opacity: 0; }
+  .animate-fade-in-delay-4 { animation: fadeIn 0.4s ease-out 0.4s forwards; opacity: 0; }
+  .animate-fade-in-delay-5 { animation: fadeIn 0.4s ease-out 0.5s forwards; opacity: 0; }
+
+  /* Card hover glow */
+  .card-hover {
+    transition: transform 0.2s ease, box-shadow 0.3s ease, border-color 0.3s ease;
+  }
+  .card-hover:hover {
+    transform: translateY(-2px) scale(1.01);
+    box-shadow: 0 0 20px rgba(99, 102, 241, 0.1), 0 8px 32px rgba(0, 0, 0, 0.3);
+    border-color: rgba(99, 102, 241, 0.3);
+  }
+  .card-hover:active {
+    transform: translateY(0) scale(0.995);
+  }
+
+  /* Glassmorphism */
+  .glass {
+    background: rgba(255, 255, 255, 0.03);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  /* Smooth progress bars */
+  .progress-smooth {
+    transition: width 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+  }
 }
 
 /* Smooth scrollbar */
-::-webkit-scrollbar { width: 6px; }
+html { scroll-behavior: smooth; }
+::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: #374151; border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: #4b5563; }
+
+/* Selection color */
+::selection { background: rgba(99, 102, 241, 0.3); }
 `,
     },
     {
