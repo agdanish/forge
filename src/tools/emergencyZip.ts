@@ -477,15 +477,15 @@ export default function App() {
               {/* KPI Cards */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-8">
                 {[
-                  { label: 'Total Items', value: animTotal, icon: Menu, trend: '+12%', up: true, color: 'indigo' },
-                  { label: 'Active', value: animActive, icon: AlertCircle, trend: '+8%', up: true, color: 'blue' },
-                  { label: 'Completed', value: animCompleted, icon: Check, trend: '+24%', up: true, color: 'emerald' },
-                  { label: 'Total Value', value: \`$\${(animValue / 1000).toFixed(0)}k\`, icon: TrendingUp, trend: '-3%', up: false, color: 'purple' },
-                ].map(({ label, value, icon: Icon, trend, up, color }, idx) => (
+                  { label: 'Total Items', value: animTotal, icon: Menu, trend: '+12%', up: true, iconClass: 'text-indigo-400' },
+                  { label: 'Active', value: animActive, icon: AlertCircle, trend: '+8%', up: true, iconClass: 'text-blue-400' },
+                  { label: 'Completed', value: animCompleted, icon: Check, trend: '+24%', up: true, iconClass: 'text-emerald-400' },
+                  { label: 'Total Value', value: \`$\${(animValue / 1000).toFixed(0)}k\`, icon: TrendingUp, trend: '-3%', up: false, iconClass: 'text-purple-400' },
+                ].map(({ label, value, icon: Icon, trend, up, iconClass }, idx) => (
                   <div key={label} className="bg-gray-900 border border-gray-800 rounded-2xl p-6 card-hover animate-slide-up" style={{ animationDelay: \`\${idx * 80}ms\` }}>
                     <div className="flex items-center justify-between mb-4">
                       <span className="text-sm text-gray-400">{label}</span>
-                      <Icon className={\`w-5 h-5 text-\${color}-400\`} />
+                      <Icon className={\`w-5 h-5 \${iconClass}\`} />
                     </div>
                     <p className="text-3xl font-bold animate-count">{value}</p>
                     <div className={\`flex items-center gap-1 mt-2 text-sm \${up ? 'text-emerald-400' : 'text-red-400'}\`}>

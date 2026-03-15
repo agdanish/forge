@@ -203,15 +203,15 @@ const tb1 = checkTimeBudget(Date.now());
 if (tb1.recommendation === 'proceed') { policyPassed++; console.log('✅ Fresh start → proceed'); }
 else { console.log('❌ Fresh start should be proceed'); failed++; }
 
-// Test 2: 80s ago = emergency
-const tb2 = checkTimeBudget(Date.now() - 85000);
-if (tb2.isEmergency) { policyPassed++; console.log('✅ 85s elapsed → emergency'); }
-else { console.log('❌ 85s elapsed should be emergency'); failed++; }
+// Test 2: 170s ago = emergency (remaining 10s < EMERGENCY_THRESHOLD 15s)
+const tb2 = checkTimeBudget(Date.now() - 170000);
+if (tb2.isEmergency) { policyPassed++; console.log('✅ 170s elapsed → emergency'); }
+else { console.log('❌ 170s elapsed should be emergency'); failed++; }
 
-// Test 3: 75s ago = hurry (skip LLM)
-const tb3 = checkTimeBudget(Date.now() - 75000);
-if (tb3.shouldSkipLLM && !tb3.isEmergency) { policyPassed++; console.log('✅ 75s elapsed → hurry (skip LLM)'); }
-else { console.log('❌ 75s elapsed should be hurry'); failed++; }
+// Test 3: 155s ago = hurry (remaining 25s < SKIP_LLM_THRESHOLD 30s, but > EMERGENCY 15s)
+const tb3 = checkTimeBudget(Date.now() - 155000);
+if (tb3.shouldSkipLLM && !tb3.isEmergency) { policyPassed++; console.log('✅ 155s elapsed → hurry (skip LLM)'); }
+else { console.log('❌ 155s elapsed should be hurry'); failed++; }
 
 passed += policyPassed;
 

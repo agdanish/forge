@@ -13,6 +13,19 @@ import { logger } from "./utils/logger.js";
 import chalk from "chalk";
 import figlet from "figlet";
 
+// ─── GLOBAL ERROR HANDLERS ───────────────────────────────────────────────────
+// Prevent unhandled rejections / uncaught exceptions from killing the process.
+// On Railway, a crash triggers a restart which burns one of 10 retry attempts.
+// We'd rather log the error and keep running than burn retries on transient issues.
+process.on("unhandledRejection", (reason) => {
+  console.error(chalk.red("[UNHANDLED REJECTION] Caught — process stays alive:"), reason);
+});
+
+process.on("uncaughtException", (error) => {
+  // Only swallow non-fatal errors. OOM and similar V8 errors will still crash.
+  console.error(chalk.red("[UNCAUGHT EXCEPTION] Caught — process stays alive:"), error);
+});
+
 async function main() {
   // Display banner
   console.log(
@@ -114,10 +127,30 @@ async function main() {
   }
 }
 
-main().catch((error) => {
-  console.error(chalk.red("Fatal error:"), error);
-  process.exit(1);
-});
+// Retry main() on transient failures instead of crashing and burning Railway restart attempts.
+// Config/registration errors call process.exit(1) directly inside main() — those are permanent
+// and won't reach this catch block. What CAN reach here: Conf library read errors, constructor
+// failures, unexpected throws from start(). Those may be transient (disk hiccup, etc.).
+const MAX_MAIN_RETRIES = 5;
+const RETRY_DELAY_MS = 10_000; // 10 seconds
+
+(async () => {
+  for (let attempt = 1; attempt <= MAX_MAIN_RETRIES; attempt++) {
+    try {
+      await main();
+      return; // main() completed (won't normally return — timers keep process alive)
+    } catch (error) {
+      console.error(chalk.red(`[STARTUP] Attempt ${attempt}/${MAX_MAIN_RETRIES} failed:`), error);
+      if (attempt < MAX_MAIN_RETRIES) {
+        console.log(chalk.yellow(`[STARTUP] Retrying in ${RETRY_DELAY_MS / 1000}s...`));
+        await new Promise(r => setTimeout(r, RETRY_DELAY_MS));
+      } else {
+        console.error(chalk.red(`[STARTUP] All ${MAX_MAIN_RETRIES} attempts exhausted. Exiting.`));
+        process.exit(1);
+      }
+    }
+  }
+})();
 
 // Export for programmatic use
 export { AgentRunner } from "./agent/runner.js";

@@ -1,4 +1,3 @@
-import { createReadStream } from "fs";
 import { stat, readFile } from "fs/promises";
 import { join } from "path";
 import { logger } from "../utils/logger.js";
@@ -22,8 +21,6 @@ const REQUIRED_FILES = [
   "package.json",
   "README.md",
 ];
-
-const REQUIRED_SCRIPTS = ["dev"];
 
 /**
  * Validate a generated ZIP file before submission.

@@ -101,11 +101,13 @@ export function scoreOutput(opts: {
 
   let designScore = 0;
 
-  // D1: Tailwind usage (styling richness)
-  const tailwindClasses = (appTsx.match(/className="[^"]+"/g) || []).length;
+  // D1: Tailwind usage (styling richness) — count both static and template-literal classNames
+  const staticClassNames = (appTsx.match(/className="[^"]+"/g) || []).length;
+  const templateClassNames = (appTsx.match(/className=\{`[^`]+`\}/g) || []).length;
+  const tailwindClasses = staticClassNames + templateClassNames;
   const d1 = Math.min(tailwindClasses >= 30 ? 2 : tailwindClasses >= 15 ? 1 : 0, 2);
   designScore += d1;
-  signals.push({ name: 'tailwind_richness', score: d1, maxScore: 2, detail: `${tailwindClasses} className attributes` });
+  signals.push({ name: 'tailwind_richness', score: d1, maxScore: 2, detail: `${tailwindClasses} className attrs (${staticClassNames} static + ${templateClassNames} template)` });
 
   // D2: Uses icons (lucide-react imports)
   const iconImports = (appTsx.match(/import\s*{[^}]+}\s*from\s*['"]lucide-react['"]/g) || []);
@@ -121,9 +123,9 @@ export function scoreOutput(opts: {
   designScore += d3;
   signals.push({ name: 'layout_responsive', score: d3, maxScore: 2, detail: `flex/grid: ${hasFlexGrid}, responsive: ${hasResponsive}` });
 
-  // D4: Color system (uses bg-, text-, border- with variety)
-  const bgColors = new Set((appTsx.match(/bg-(?:\w+-)?(?:\d+)/g) || []).map(c => c));
-  const textColors = new Set((appTsx.match(/text-(?:\w+-)?(?:\d+)/g) || []).map(c => c));
+  // D4: Color system (uses bg-, text-, border- with variety — includes non-numeric like white/black)
+  const bgColors = new Set((appTsx.match(/bg-(?:(?:\w+-\d+)|white|black|transparent|current)/g) || []).map(c => c));
+  const textColors = new Set((appTsx.match(/text-(?:(?:\w+-\d+)|white|black|transparent|current)/g) || []).map(c => c));
   const colorVariety = bgColors.size + textColors.size;
   const d4 = Math.min(colorVariety >= 8 ? 2 : colorVariety >= 4 ? 1 : 0, 2);
   designScore += d4;

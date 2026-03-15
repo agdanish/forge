@@ -58,7 +58,7 @@ const jobStore = new Conf<{ processedJobs: string[] }>({
 
 // ─── UPGRADE 3: ENHANCED SYSTEM PROMPT ───────────────────────────────────────
 export const HACKATHON_SYSTEM_PROMPT = (effectiveBudget: number, job: Job, scaffoldHint: string): string => `
-You are FORGE — a world-class AI agent competing for a $5,000 hackathon prize.
+You are FORGE — a world-class AI agent competing for a $10,000 hackathon prize.
 Judges score on: Functionality (≥5/10 REQUIRED to qualify) → Design → Speed.
 Your mission: Build the most functional, beautiful app possible. Every point counts.
 
@@ -580,6 +580,13 @@ export class AgentRunner extends EventEmitter implements TypedEventEmitter {
     if (!this.running) return;
     if (this.wsReconnectTimer) clearTimeout(this.wsReconnectTimer);
 
+    // Enforce max reconnect attempts — stop WS retries and rely on polling only
+    if (this.wsReconnectAttempts >= AgentRunner.WS_RECONNECT_MAX_ATTEMPTS) {
+      logger.warn(`[WS-RECONNECT] Max attempts (${AgentRunner.WS_RECONNECT_MAX_ATTEMPTS}) reached — giving up on WebSocket, polling-only mode`);
+      this.disconnectWebSocket();
+      return;
+    }
+
     const delay = Math.min(
       AgentRunner.WS_RECONNECT_BASE_MS * Math.pow(2, this.wsReconnectAttempts),
       AgentRunner.WS_RECONNECT_MAX_MS
@@ -701,6 +708,7 @@ export class AgentRunner extends EventEmitter implements TypedEventEmitter {
         await this.acceptAndProcessSwarmJob(job);
       } else {
         this.processJob(job).catch((error) => {
+          logger.error(`[WS] processJob failed for ${job.id}:`, error);
           this.emitEvent({ type: "error", message: `Failed to process job ${job.id}`, error: error instanceof Error ? error : new Error(String(error)) });
         });
       }
@@ -859,10 +867,12 @@ export class AgentRunner extends EventEmitter implements TypedEventEmitter {
         this.processingJobs.add(job.id);
         if (job.jobType === "SWARM") {
           this.acceptAndProcessSwarmJob(job).catch((error) => {
+            logger.error(`[POLL] acceptAndProcessSwarmJob failed for ${job.id}:`, error);
             this.emitEvent({ type: "error", message: `Failed to process swarm job ${job.id}`, error: error instanceof Error ? error : new Error(String(error)) });
           });
         } else {
           this.processJob(job).catch((error) => {
+            logger.error(`[POLL] processJob failed for ${job.id}:`, error);
             this.emitEvent({ type: "error", message: `Failed to process job ${job.id}`, error: error instanceof Error ? error : new Error(String(error)) });
           });
         }

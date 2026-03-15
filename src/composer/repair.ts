@@ -128,12 +128,18 @@ export function repairComposedOutput(appTsx: string): RepairResult {
     };
     for (const icon of importedIcons) {
       if (corrections[icon]) {
+        const corrected = corrections[icon];
+        // Replace in import statement
         repaired = repaired.replace(
-          new RegExp(`\\b${icon}\\b`, 'g'),
-          corrections[icon]
+          /import\s+{([^}]+)}\s+from\s+['"]lucide-react['"]/,
+          (match, imports) => match.replace(new RegExp(`\\b${icon}\\b`), corrected)
         );
+        // Replace in JSX usage (component position: <Icon or {Icon})
+        repaired = repaired.replace(new RegExp(`<${icon}\\b`, 'g'), `<${corrected}`);
+        repaired = repaired.replace(new RegExp(`</${icon}>`, 'g'), `</${corrected}>`);
+        repaired = repaired.replace(new RegExp(`\\{${icon}\\}`, 'g'), `{${corrected}}`);
         diagnoses.push({
-          issue: `Lucide icon "${icon}" doesn't exist, replaced with "${corrections[icon]}"`,
+          issue: `Lucide icon "${icon}" doesn't exist, replaced with "${corrected}"`,
           category: 'broken_import',
           repaired: true,
           shouldEscalate: false,

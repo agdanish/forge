@@ -264,7 +264,7 @@ export class LLMClient {
 
               if (canvasUsage) warnings.push('CRITICAL: Canvas detected — remove <canvas> and use Tailwind divs/grids instead. Canvas scores ZERO on design.');
               if (!lucideImport) warnings.push('CRITICAL: No lucide-react imports — add: import { Search, Plus, Edit, Trash2, Settings, Home, Menu, X, Check, Filter } from "lucide-react"');
-              if (classNameCount < 25) warnings.push(`CRITICAL: Only ${classNameCount} className attrs (need ≥30) — every div/button/span needs Tailwind classes like bg-gray-900, text-white, p-4, rounded-xl, flex, etc.`);
+              if (classNameCount < 25) warnings.push(`CRITICAL: Only ${classNameCount} className attrs (need ≥25) — every div/button/span needs Tailwind classes like bg-gray-900, text-white, p-4, rounded-xl, flex, etc.`);
               if (inlineStyleCount > 3) warnings.push(`WARNING: ${inlineStyleCount} inline styles detected — replace with Tailwind className equivalents.`);
               if (useStateCount < 4) warnings.push(`WARNING: Only ${useStateCount} useState (need ≥4) — add search, filter, modal, selectedItem states.`);
               if (handlerCount < 5) warnings.push(`WARNING: Only ${handlerCount} event handlers (need ≥5) — add onClick, onChange, onSubmit handlers.`);

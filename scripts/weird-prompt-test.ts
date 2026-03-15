@@ -113,14 +113,14 @@ for (const prompt of WEIRD_PROMPTS) {
 console.log('\n' + '═'.repeat(70));
 const passed = results.filter(r => r.success).length;
 const failed = results.filter(r => !r.success).length;
-const shells = { universal: 0, dashboard: 0, landing: 0, ERROR: 0 };
+const shells = { universal: 0, dashboard: 0, landing: 0, kanban: 0, wizard: 0, ERROR: 0 };
 results.forEach(r => { shells[r.shell as keyof typeof shells] = (shells[r.shell as keyof typeof shells] || 0) + 1; });
 const avgTime = Math.round(results.reduce((s, r) => s + r.timeMs, 0) / results.length);
 const maxTime = Math.max(...results.map(r => r.timeMs));
 
 console.log(`\n📊 Results: ${passed} passed, ${failed} failed`);
 console.log(`⏱  Avg time: ${avgTime}ms | Max time: ${maxTime}ms`);
-console.log(`🔧 Universal: ${shells.universal} | 📊 Dashboard: ${shells.dashboard} | 🚀 Landing: ${shells.landing} | ❌ Error: ${shells.ERROR}`);
+console.log(`🔧 Universal: ${shells.universal} | 📊 Dashboard: ${shells.dashboard} | 🚀 Landing: ${shells.landing} | 📋 Kanban: ${shells.kanban} | 🧙 Wizard: ${shells.wizard} | ❌ Error: ${shells.ERROR}`);
 
 // Flag weak prompts
 const weakPrompts = results.filter(r => r.shell === 'universal' && r.domain === 'Workspace' && r.entity === 'Item');

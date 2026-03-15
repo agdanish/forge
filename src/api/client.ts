@@ -235,7 +235,12 @@ export class SeedstrClient {
     const config = getConfig();
     
     // Get file info
-    const stats = statSync(filePath);
+    let stats;
+    try {
+      stats = statSync(filePath);
+    } catch (e) {
+      throw new Error(`File not found or unreadable: ${filePath}`);
+    }
     const fileName = basename(filePath);
     
     // Determine MIME type based on extension

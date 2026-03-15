@@ -20,12 +20,12 @@ describe("Config", () => {
 
       const config = getConfig();
 
-      expect(config.model).toBe("anthropic/claude-sonnet-4");
-      expect(config.maxTokens).toBe(4096);
+      expect(config.model).toBe("anthropic/claude-sonnet-4-6");
+      expect(config.maxTokens).toBe(32768);
       expect(config.temperature).toBe(0.7);
-      expect(config.minBudget).toBe(0.5);
+      expect(config.minBudget).toBe(0.01);
       expect(config.pollInterval).toBe(30);
-      expect(config.maxConcurrentJobs).toBe(3);
+      expect(config.maxConcurrentJobs).toBe(1);
       expect(config.logLevel).toBe("info");
     });
 

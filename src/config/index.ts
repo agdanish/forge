@@ -36,6 +36,22 @@ export const configStore = new Conf<StoredConfig>({
 export function getConfig(): AgentConfig {
   const stored = configStore.store;
 
+  // Safe parseInt/parseFloat with NaN fallback to default
+  const safeInt = (val: string | undefined, fallback: number): number => {
+    if (!val) return fallback;
+    const parsed = parseInt(val, 10);
+    return Number.isNaN(parsed) ? fallback : parsed;
+  };
+  const safeFloat = (val: string | undefined, fallback: number): number => {
+    if (!val) return fallback;
+    const parsed = parseFloat(val);
+    return Number.isNaN(parsed) ? fallback : parsed;
+  };
+
+  // Validate WALLET_TYPE to known values
+  const rawWalletType = process.env.WALLET_TYPE || stored.walletType || "ETH";
+  const walletType: WalletType = (rawWalletType === "ETH" || rawWalletType === "SOL") ? rawWalletType : "ETH";
+
   return {
     // API Keys
     openrouterApiKey: process.env.OPENROUTER_API_KEY || "",
@@ -45,18 +61,17 @@ export function getConfig(): AgentConfig {
     // Wallet
     walletAddress:
       process.env.WALLET_ADDRESS || process.env.SOLANA_WALLET_ADDRESS || stored.walletAddress || "",
-    walletType:
-      (process.env.WALLET_TYPE as WalletType) || stored.walletType || "ETH",
+    walletType,
 
     // Model settings
-    model: process.env.OPENROUTER_MODEL || "anthropic/claude-sonnet-4",
-    maxTokens: parseInt(process.env.MAX_TOKENS || "32768", 10),
-    temperature: parseFloat(process.env.TEMPERATURE || "0.7"),
+    model: process.env.OPENROUTER_MODEL || "anthropic/claude-sonnet-4-6",
+    maxTokens: safeInt(process.env.MAX_TOKENS, 32768),
+    temperature: safeFloat(process.env.TEMPERATURE, 0.7),
 
     // Agent behavior
-    minBudget: parseFloat(process.env.MIN_BUDGET || "0.01"),
-    maxConcurrentJobs: parseInt(process.env.MAX_CONCURRENT_JOBS || "3", 10),
-    pollInterval: parseInt(process.env.POLL_INTERVAL || "30", 10),
+    minBudget: safeFloat(process.env.MIN_BUDGET, 0.01),
+    maxConcurrentJobs: safeInt(process.env.MAX_CONCURRENT_JOBS, 1),
+    pollInterval: safeInt(process.env.POLL_INTERVAL, 30),
 
     // Tools
     tools: {
@@ -80,9 +95,9 @@ export function getConfig(): AgentConfig {
     debug: process.env.DEBUG === "true",
 
     // LLM retry settings (for recovering from transient tool argument parsing errors)
-    llmRetryMaxAttempts: parseInt(process.env.LLM_RETRY_MAX_ATTEMPTS || "3", 10),
-    llmRetryBaseDelayMs: parseInt(process.env.LLM_RETRY_BASE_DELAY_MS || "1000", 10),
-    llmRetryMaxDelayMs: parseInt(process.env.LLM_RETRY_MAX_DELAY_MS || "10000", 10),
+    llmRetryMaxAttempts: safeInt(process.env.LLM_RETRY_MAX_ATTEMPTS, 3),
+    llmRetryBaseDelayMs: safeInt(process.env.LLM_RETRY_BASE_DELAY_MS, 1000),
+    llmRetryMaxDelayMs: safeInt(process.env.LLM_RETRY_MAX_DELAY_MS, 10000),
     llmRetryFallbackNoTools: process.env.LLM_RETRY_FALLBACK_NO_TOOLS !== "false",
   };
 }
