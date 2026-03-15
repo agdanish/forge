@@ -376,6 +376,27 @@ Add a Bell icon with a red badge that shows count. onClick clears it. Use animat
 - Export CSV download button (proves real functionality, not just visual)
 - Keyboard shortcuts visible as hint text (proves accessibility awareness)
 
+### Undo on delete (MUST HAVE — proves advanced state management):
+After handleDelete, pass the deleted item to showToast as undoItem. In the toast, show an "Undo" button:
+\`\`\`tsx
+const [toast, setToast] = useState<{ message: string; undoItem?: any } | null>(null)
+const showToast = (msg: string, undoItem?: any) => { setToast({ message: msg, undoItem }); setTimeout(() => setToast(null), 4000) }
+const handleUndo = () => { if (toast?.undoItem) { setItems(prev => [toast.undoItem!, ...prev]); setToast(null) } }
+// Toast JSX: {toast.undoItem && <button onClick={handleUndo} className="px-2 py-0.5 rounded bg-white/20 hover:bg-white/30 text-xs font-bold">Undo</button>}
+\`\`\`
+
+### Loading skeleton on mount (production-app feel):
+\`\`\`tsx
+const [loading, setLoading] = useState(true)
+useEffect(() => { setTimeout(() => setLoading(false), 400) }, [])
+// Render shimmer placeholders when loading:
+{loading ? <div className="grid grid-cols-4 gap-4">{[1,2,3,4].map(i => <div key={i} className="h-28 rounded-xl animate-shimmer" />)}</div> : <KpiGrid />}
+\`\`\`
+
+### Filter results counter (MUST HAVE):
+Always show "Showing X of Y items" above data tables/lists. Example:
+\`<p className="text-gray-500 text-sm mb-3">Showing <span className="text-white font-medium">{filtered.length}</span> of <span className="text-white font-medium">{data.length}</span> items</p>\`
+
 ### NEVER do these (instant score penalty):
 - ❌ Alert() popups for anything
 - ❌ console.log() for user-visible actions

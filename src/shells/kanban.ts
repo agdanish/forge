@@ -97,11 +97,23 @@ export default function App() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [newName, setNewName] = useState('');
   const [newDesc, setNewDesc] = useState('');
-  const [toast, setToast] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ message: string; undoItem?: DataRecord } | null>(null);
   const [notifications, setNotifications] = useState(3);
+  const [loading, setLoading] = useState(true);
   const searchRef = useRef<HTMLInputElement>(null);
+  const toastTimer = useRef<ReturnType<typeof setTimeout>>();
 
-  const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 2500); };
+  useEffect(() => { const t = setTimeout(() => setLoading(false), 400); return () => clearTimeout(t); }, []);
+
+  const showToast = (msg: string, undoItem?: DataRecord) => {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    setToast({ message: msg, undoItem });
+    toastTimer.current = setTimeout(() => setToast(null), 4000);
+  };
+
+  const handleUndo = () => {
+    if (toast?.undoItem) { setItems(prev => [toast.undoItem!, ...prev]); setToast(null); showToast('✓ Restored'); }
+  };
 
   // ── Keyboard Shortcuts ──
   useEffect(() => {
@@ -122,10 +134,11 @@ export default function App() {
   };
 
   const handleDelete = (id: number) => {
+    const item = items.find(r => r.id === id);
     setItems(prev => prev.filter(r => r.id !== id));
     if (selectedItem?.id === id) setSelectedItem(null);
     setMenuOpen(null);
-    showToast('✓ Item removed');
+    showToast('✓ Item removed', item);
   };
 
   const filtered = useMemo(() => {
@@ -196,6 +209,18 @@ export default function App() {
       </header>
 
       <main className="max-w-[1600px] mx-auto px-4 sm:px-6 py-4">
+        {loading ? (
+          <div className="space-y-4 animate-fade-in">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              {[1,2,3,4].map(i => <div key={i} className="${t.card} border ${t.cardBorder} rounded-xl p-3 h-20 animate-shimmer" />)}
+            </div>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              {[1,2,3,4].map(i => <div key={i} className="${t.card} border ${t.cardBorder} rounded-xl h-64 animate-shimmer" />)}
+            </div>
+          </div>
+        ) : (<>
+        {/* Filter Counter */}
+        <p className="${t.textMuted} text-sm mb-3">Showing <span className="${t.text} font-medium">{filtered.length}</span> of <span className="${t.text} font-medium">{items.length}</span> items</p>
         {/* KPI Strip */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
           {KPIS.map((kpi, i) => (
@@ -369,6 +394,7 @@ export default function App() {
             </table>
           </div>
         )}
+        </>)}
       </main>
 
       {/* Detail Modal */}
@@ -448,8 +474,11 @@ export default function App() {
         </div>
       )}
 
-      {/* Toast */}
-      {toast && <div className="fixed top-4 right-4 z-50 ${isDark ? 'bg-emerald-600' : 'bg-emerald-500'} text-white px-4 py-3 rounded-xl shadow-2xl text-sm font-medium animate-slide-up flex items-center gap-2"><Check className="w-4 h-4" />{toast}</div>}
+      {/* Toast with Undo */}
+      {toast && <div className="fixed top-4 right-4 z-50 ${isDark ? 'bg-emerald-600' : 'bg-emerald-500'} text-white px-4 py-3 rounded-xl shadow-2xl text-sm font-medium animate-slide-up flex items-center gap-3">
+        <Check className="w-4 h-4" /><span>{toast.message}</span>
+        {toast.undoItem && <button onClick={handleUndo} className="ml-1 px-2 py-0.5 rounded bg-white/20 hover:bg-white/30 text-xs font-bold transition-colors">Undo</button>}
+      </div>}
 
       {/* Click-outside to close menu */}
       {menuOpen && <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(null)} />}

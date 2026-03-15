@@ -263,11 +263,23 @@ export default function App() {
   const [formCategory, setFormCategory] = useState('Strategy')
   const [formPriority, setFormPriority] = useState<'high' | 'medium' | 'low'>('medium')
   const [formValue, setFormValue] = useState('')
-  const [toast, setToast] = useState<string | null>(null)
+  const [toast, setToast] = useState<{ message: string; undoItem?: Item } | null>(null)
   const [notifications, setNotifications] = useState(3)
+  const [loading, setLoading] = useState(true)
   const searchRef = useRef<HTMLInputElement>(null)
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout>>()
 
-  const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 2500) }
+  useEffect(() => { const t = setTimeout(() => setLoading(false), 400); return () => clearTimeout(t) }, [])
+
+  const showToast = (msg: string, undoItem?: Item) => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
+    setToast({ message: msg, undoItem })
+    toastTimerRef.current = setTimeout(() => setToast(null), 4000)
+  }
+
+  const handleUndo = () => {
+    if (toast?.undoItem) { setItems(prev => [toast.undoItem!, ...prev]); setToast(null); showToast('✓ Restored') }
+  }
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -318,6 +330,7 @@ export default function App() {
     setItems([newItem, ...items])
     resetForm()
     showToast('✓ Item added successfully')
+    setNotifications(n => n + 1)
   }
 
   const handleEdit = () => {
@@ -331,9 +344,10 @@ export default function App() {
   }
 
   const handleDelete = (id: number) => {
+    const item = items.find(i => i.id === id)
     setItems(items.filter(i => i.id !== id))
     if (selectedItem?.id === id) setSelectedItem(null)
-    showToast('✓ Item deleted')
+    showToast('✓ Item deleted', item)
   }
 
   const handleStatusChange = (id: number, status: Item['status']) => {
@@ -366,10 +380,11 @@ export default function App() {
 
   return (
     <div className="flex h-screen bg-gray-950 text-white overflow-hidden">
-      {/* Toast Notification */}
+      {/* Toast with Undo */}
       {toast && (
-        <div className="fixed top-4 right-4 z-50 bg-emerald-600 text-white px-4 py-3 rounded-xl shadow-2xl text-sm font-medium animate-slide-up flex items-center gap-2">
-          <Check className="w-4 h-4" />{toast}
+        <div className="fixed top-4 right-4 z-50 bg-emerald-600 text-white px-4 py-3 rounded-xl shadow-2xl text-sm font-medium animate-slide-up flex items-center gap-3">
+          <Check className="w-4 h-4" /><span>{toast.message}</span>
+          {toast.undoItem && <button onClick={handleUndo} className="ml-1 px-2 py-0.5 rounded bg-white/20 hover:bg-white/30 text-xs font-bold transition-colors">Undo</button>}
         </div>
       )}
       {/* Sidebar */}
@@ -431,6 +446,18 @@ export default function App() {
 
         {/* Content Area */}
         <div className="flex-1 overflow-auto p-6">
+          {loading ? (
+            <div className="space-y-4 animate-fade-in">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                {[1,2,3,4].map(i => <div key={i} className="bg-gray-900 border border-gray-800 rounded-2xl h-28 animate-shimmer" />)}
+              </div>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                {[1,2].map(i => <div key={i} className="bg-gray-900 border border-gray-800 rounded-2xl h-56 animate-shimmer" />)}
+              </div>
+            </div>
+          ) : (<>
+          {/* Filter Counter */}
+          <p className="text-gray-500 text-sm mb-3">Showing <span className="text-white font-medium">{filtered.length}</span> of <span className="text-white font-medium">{items.length}</span> items</p>
           {/* Category Filter */}
           <div className="flex items-center gap-2 mb-6 overflow-x-auto pb-2">
             <Filter className="w-4 h-4 text-gray-500 flex-shrink-0" />
@@ -601,6 +628,7 @@ export default function App() {
               ))}
             </div>
           )}
+          </>)}
         </div>
       </main>
 

@@ -104,14 +104,27 @@ export default function App() {
   const [timeRange, setTimeRange] = useState('30d');
   const [selectedRecord, setSelectedRecord] = useState<DataRecord | null>(null);
   const [data, setData] = useState(INITIAL_DATA);
-  const [toast, setToast] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ message: string; undoItem?: DataRecord } | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [newName, setNewName] = useState('');
   const [newDesc, setNewDesc] = useState('');
   const [notifications, setNotifications] = useState(3);
+  const [loading, setLoading] = useState(true);
   const searchRef = useRef<HTMLInputElement>(null);
+  const toastTimer = useRef<ReturnType<typeof setTimeout>>();
 
-  const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 2500); };
+  // Loading skeleton on mount
+  useEffect(() => { const t = setTimeout(() => setLoading(false), 400); return () => clearTimeout(t); }, []);
+
+  const showToast = (msg: string, undoItem?: DataRecord) => {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    setToast({ message: msg, undoItem });
+    toastTimer.current = setTimeout(() => setToast(null), 4000);
+  };
+
+  const handleUndo = () => {
+    if (toast?.undoItem) { setData(prev => [toast.undoItem!, ...prev]); setToast(null); showToast('✓ Restored'); }
+  };
 
   // ── Keyboard Shortcuts ──
   useEffect(() => {
@@ -134,9 +147,21 @@ export default function App() {
   };
 
   const handleDelete = (id: number) => {
+    const item = data.find(r => r.id === id);
     setData(prev => prev.filter(r => r.id !== id));
     setSelectedRecord(null);
-    showToast('✓ ${spec.primaryEntity} deleted');
+    showToast('✓ ${spec.primaryEntity} deleted', item);
+  };
+
+  // Inline status cycling
+  const cycleStatus = (id: number) => {
+    const order: Status[] = ['pending', 'active', 'completed', 'archived'];
+    setData(prev => prev.map(r => {
+      if (r.id !== id) return r;
+      const next = order[(order.indexOf(r.status) + 1) % order.length];
+      return { ...r, status: next };
+    }));
+    showToast('✓ Status cycled');
   };
 
   const handleStatusChange = (id: number, status: Status) => {
@@ -333,39 +358,46 @@ export default function App() {
 
   // ── Data Table ──
   const DataTable = () => (
-    <div className="${t.card} ${t.cardBorder} border rounded-xl overflow-hidden">
-      <div className="overflow-x-auto">
-        <table className="w-full">
-          <thead>
-            <tr className="${isDark ? 'bg-gray-800/50 border-gray-800' : 'bg-gray-50 border-gray-200'} border-b">
-              {[['name','Name'],['status','Status'],['category','Category'],['value','Value'],['date','Date'],['assignee','Assignee']].map(([key, label]) => (
-                <th key={key} onClick={() => ['name','value','date'].includes(key) ? toggleSort(key as any) : null}
-                  className={\`px-4 py-3 text-left text-xs font-medium ${t.textMuted} uppercase tracking-wide \${['name','value','date'].includes(key) ? 'cursor-pointer' : ''}\`}>
-                  <div className="flex items-center gap-1">{label}{sortField === key && <ArrowUpDown className="w-3 h-3" />}</div>
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y ${isDark ? 'divide-gray-800' : 'divide-gray-200'}">
-            {filtered.map(r => (
-              <tr key={r.id} onClick={() => setSelectedRecord(r)} className="${isDark ? 'hover:bg-gray-800/50' : 'hover:bg-gray-50'} transition-colors cursor-pointer">
-                <td className="px-4 py-3"><div><span className="${t.text} text-sm font-medium">{r.name}</span><p className="${t.textSubtle} text-xs mt-0.5">{r.description}</p></div></td>
-                <td className="px-4 py-3"><span className={\`text-xs px-2 py-0.5 rounded-full \${STATUS_COLORS[r.status]}\`}>{r.status}</span></td>
-                <td className="px-4 py-3 ${t.textMuted} text-sm">{r.category}</td>
-                <td className="px-4 py-3 ${t.text} text-sm font-mono">{fmt(r.value)}</td>
-                <td className="px-4 py-3 ${t.textMuted} text-sm">{r.date}</td>
-                <td className="px-4 py-3 ${t.textMuted} text-sm">{r.assignee}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+    <div>
+      <div className="flex items-center justify-between mb-3">
+        <p className="${t.textMuted} text-sm">Showing <span className="${t.text} font-medium">{filtered.length}</span> of <span className="${t.text} font-medium">{data.length}</span> ${spec.primaryEntityPlural.toLowerCase()}</p>
+        <p className="${t.textSubtle} text-xs">Click status badge to cycle</p>
       </div>
-      {filtered.length === 0 && (
-        <div className="text-center py-12">
-          <AlertCircle className="${t.textSubtle} w-8 h-8 mx-auto mb-2" />
-          <p className="${t.textMuted}">No records match your filters</p>
+      <div className="${t.card} ${t.cardBorder} border rounded-xl overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="${isDark ? 'bg-gray-800/50 border-gray-800' : 'bg-gray-50 border-gray-200'} border-b">
+                {[['name','Name'],['status','Status'],['category','Category'],['value','Value'],['date','Date'],['assignee','Assignee']].map(([key, label]) => (
+                  <th key={key} onClick={() => ['name','value','date'].includes(key) ? toggleSort(key as any) : null}
+                    className={\`px-4 py-3 text-left text-xs font-medium ${t.textMuted} uppercase tracking-wide \${['name','value','date'].includes(key) ? 'cursor-pointer' : ''}\`}>
+                    <div className="flex items-center gap-1">{label}{sortField === key && <ArrowUpDown className="w-3 h-3" />}</div>
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y ${isDark ? 'divide-gray-800' : 'divide-gray-200'}">
+              {filtered.map(r => (
+                <tr key={r.id} className="${isDark ? 'hover:bg-gray-800/50' : 'hover:bg-gray-50'} transition-colors cursor-pointer">
+                  <td className="px-4 py-3" onClick={() => setSelectedRecord(r)}><div><span className="${t.text} text-sm font-medium">{r.name}</span><p className="${t.textSubtle} text-xs mt-0.5">{r.description}</p></div></td>
+                  <td className="px-4 py-3"><button onClick={(e) => { e.stopPropagation(); cycleStatus(r.id); }} className={\`text-xs px-2 py-0.5 rounded-full cursor-pointer hover:ring-2 hover:ring-indigo-500/40 transition-all \${STATUS_COLORS[r.status]}\`} title="Click to change status">{r.status}</button></td>
+                  <td className="px-4 py-3 ${t.textMuted} text-sm">{r.category}</td>
+                  <td className="px-4 py-3 ${t.text} text-sm font-mono">{fmt(r.value)}</td>
+                  <td className="px-4 py-3 ${t.textMuted} text-sm">{r.date}</td>
+                  <td className="px-4 py-3 ${t.textMuted} text-sm">{r.assignee}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
-      )}
+        {filtered.length === 0 && (
+          <div className="text-center py-12">
+            <AlertCircle className="${t.textSubtle} w-8 h-8 mx-auto mb-2" />
+            <p className="${t.textMuted}">No records match your filters</p>
+            <button onClick={() => { setSearch(''); setStatusFilter('all'); setCategoryFilter('all'); }} className="${t.accent} text-sm mt-2 hover:underline">Clear all filters</button>
+          </div>
+        )}
+      </div>
     </div>
   );
 
@@ -438,7 +470,16 @@ export default function App() {
         </header>
 
         <div className="p-6 space-y-6">
-          {tab === 'overview' && (
+          {loading ? (
+            <div className="space-y-6 animate-fade-in">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                {[1,2,3,4].map(i => <div key={i} className="${t.card} ${t.cardBorder} border rounded-xl p-5 h-28 animate-shimmer" />)}
+              </div>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {[1,2].map(i => <div key={i} className="${t.card} ${t.cardBorder} border rounded-xl h-64 animate-shimmer" />)}
+              </div>
+            </div>
+          ) : tab === 'overview' && (
             <>
               <KpiGrid />
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -452,7 +493,7 @@ export default function App() {
               </div>
             </>
           )}
-          {tab === 'analytics' && (
+          {!loading && tab === 'analytics' && (
             <>
               <KpiGrid />
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -463,7 +504,7 @@ export default function App() {
               <TopPerformers />
             </>
           )}
-          {tab === 'records' && <DataTable />}
+          {!loading && tab === 'records' && <DataTable />}
         </div>
       </main>
 
@@ -526,11 +567,12 @@ export default function App() {
         </div>
       )}
 
-      {/* Toast */}
+      {/* Toast with Undo */}
       {toast && (
         <div className="fixed bottom-6 right-6 z-[60] animate-slide-up">
-          <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-emerald-600 text-white text-sm font-medium shadow-2xl">
-            <Check className="w-4 h-4" />{toast}
+          <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-emerald-600 text-white text-sm font-medium shadow-2xl">
+            <Check className="w-4 h-4" /><span>{toast.message}</span>
+            {toast.undoItem && <button onClick={handleUndo} className="ml-2 px-2 py-0.5 rounded bg-white/20 hover:bg-white/30 text-xs font-bold transition-colors">Undo</button>}
           </div>
         </div>
       )}
