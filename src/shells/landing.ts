@@ -64,7 +64,7 @@ export function renderLandingShell(spec: AppSpec): string {
     { title: 'Analyze & Grow', desc: `Get real-time insights and make data-driven decisions to scale your ${spec.domain.toLowerCase()} operations.` },
   ];
 
-  return `import React, { useState } from 'react';
+  return `import React, { useState, useEffect } from 'react';
 import { ${featureIcons.join(', ')}, ChevronDown, ChevronUp, Check, ArrowRight, Star, Users, Clock, Menu, X } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 
@@ -92,6 +92,52 @@ const FAQS = ${JSON.stringify(faqs, null, 2)};
 const STEPS = ${JSON.stringify(steps, null, 2)};
 
 const iconMap: Record<string, React.FC<{className?: string}>> = { ${featureIcons.map(ic => `${ic}: ${ic}`).join(', ')} };
+
+// ── Animated Counter Hook ──
+function useCountUp(target: number, duration = 1200) {
+  const [val, setVal] = useState(0);
+  useEffect(() => {
+    const t0 = performance.now();
+    const tick = (now: number) => {
+      const p = Math.min((now - t0) / duration, 1);
+      const ease = 1 - Math.pow(1 - p, 3);
+      setVal(Math.round(ease * target));
+      if (p < 1) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  }, [target, duration]);
+  return val;
+}
+
+// ── Extract number from stat value ──
+function extractNum(s: string): number {
+  const m = s.replace(/[^0-9.]/g, '');
+  return parseFloat(m) || 0;
+}
+function formatStat(original: string, animated: number): string {
+  const hasPlus = original.includes('+');
+  const hasPercent = original.includes('%');
+  const hasK = original.toLowerCase().includes('k');
+  const hasM = original.toLowerCase().includes('m');
+  const hasDollar = original.includes('$');
+  let result = String(animated);
+  if (hasDollar) result = '$' + result;
+  if (hasK) result += 'K';
+  if (hasM) result += 'M';
+  if (hasPercent) result += '%';
+  if (hasPlus) result += '+';
+  return result;
+}
+
+function AnimatedStat({ stat }: { stat: { label: string; value: string } }) {
+  const animated = useCountUp(extractNum(stat.value));
+  return (
+    <div className="text-center">
+      <div className="text-3xl sm:text-4xl font-bold bg-gradient-to-r ${t.gradient} bg-clip-text text-transparent animate-count">{formatStat(stat.value, animated)}</div>
+      <div className="${t.textMuted} text-sm mt-1">{stat.label}</div>
+    </div>
+  );
+}
 
 export default function App() {
   const [annual, setAnnual] = useState(true);
@@ -170,12 +216,7 @@ export default function App() {
       {/* Stats Strip */}
       <section className="border-y ${t.cardBorder} ${t.card}">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 grid grid-cols-2 md:grid-cols-4 gap-8">
-          {STATS.map((s, i) => (
-            <div key={i} className="text-center">
-              <div className="text-3xl sm:text-4xl font-bold bg-gradient-to-r ${t.gradient} bg-clip-text text-transparent">{s.value}</div>
-              <div className="${t.textMuted} text-sm mt-1">{s.label}</div>
-            </div>
-          ))}
+          {STATS.map((s, i) => <AnimatedStat key={i} stat={s} />)}
         </div>
       </section>
 

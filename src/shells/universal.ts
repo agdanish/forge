@@ -22,11 +22,12 @@ export function renderUniversalShell(spec: AppSpec): string {
   const categoriesJSON = JSON.stringify(spec.categories);
   const viewsJSON = JSON.stringify(spec.views);
 
-  return `import { useState, useMemo } from 'react';
+  return `import { useState, useMemo, useEffect, useRef } from 'react';
 import {
   Search, Plus, Filter, LayoutDashboard, List, Columns3,
   ChevronDown, X, Edit3, Trash2, Eye, TrendingUp, TrendingDown,
-  CheckCircle2, Clock, Archive, AlertCircle, Menu, ArrowUpDown
+  CheckCircle2, Clock, Archive, AlertCircle, Menu, ArrowUpDown,
+  Download, Check, Bell, Keyboard
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
@@ -69,6 +70,34 @@ const PRIORITY_COLORS: Record<Priority, string> = { ${priorityColors} };
 // ── Helpers ──
 const fmt = (n: number) => n >= 1000000 ? '$' + (n / 1000000).toFixed(1) + 'M' : n >= 1000 ? '$' + (n / 1000).toFixed(0) + 'k' : '$' + n;
 
+// ── Animated Counter Hook ──
+function useCountUp(target: number, duration = 1200) {
+  const [val, setVal] = useState(0);
+  useEffect(() => {
+    let start = 0;
+    const t0 = performance.now();
+    const tick = (now: number) => {
+      const p = Math.min((now - t0) / duration, 1);
+      const ease = 1 - Math.pow(1 - p, 3);
+      setVal(Math.round(ease * target));
+      if (p < 1) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  }, [target, duration]);
+  return val;
+}
+
+// ── CSV Export ──
+function exportCSV(rows: ${spec.primaryEntity}[]) {
+  const header = 'Name,Status,Priority,Category,Value,Date,Assignee';
+  const body = rows.map(r => [r.name, r.status, r.priority, r.category, r.value, r.date, r.assignee].join(','));
+  const blob = new Blob([header + '\\n' + body.join('\\n')], { type: 'text/csv' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = '${spec.primaryEntityPlural.toLowerCase()}.csv';
+  a.click();
+}
+
 export default function App() {
   const [items, setItems] = useState<${spec.primaryEntity}[]>(INITIAL_DATA);
   const [view, setView] = useState<ViewMode>(VIEWS[0]);
@@ -81,6 +110,31 @@ export default function App() {
   const [showModal, setShowModal] = useState(false);
   const [editItem, setEditItem] = useState<${spec.primaryEntity} | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [toast, setToast] = useState<{ message: string; undoItem?: ${spec.primaryEntity} } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [notifications, setNotifications] = useState(3);
+  const searchRef = useRef<HTMLInputElement>(null);
+  const toastTimer = useRef<ReturnType<typeof setTimeout>>();
+
+  // ── Loading Skeleton ──
+  useEffect(() => { const t = setTimeout(() => setLoading(false), 400); return () => clearTimeout(t); }, []);
+
+  // ── Keyboard Shortcuts ──
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') { e.preventDefault(); searchRef.current?.focus(); }
+      if (e.key === 'Escape') { setSelected(null); setShowModal(false); setEditItem(null); }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
+
+  // ── Toast Helper ──
+  const showToast = (message: string, undoItem?: ${spec.primaryEntity}) => {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    setToast({ message, undoItem });
+    toastTimer.current = setTimeout(() => setToast(null), 4000);
+  };
 
   // ── Filtering & Sorting ──
   const filtered = useMemo(() => {
@@ -106,17 +160,34 @@ export default function App() {
     if (editItem) {
       setItems(prev => prev.map(i => i.id === editItem.id ? { ...data, id: editItem.id } : i));
       if (selected?.id === editItem.id) setSelected({ ...data, id: editItem.id });
+      showToast('${spec.primaryEntity} updated');
     } else {
       const newItem = { ...data, id: nextId++ };
       setItems(prev => [newItem, ...prev]);
+      showToast('${spec.primaryEntity} created');
     }
     setShowModal(false);
     setEditItem(null);
   };
 
   const handleDelete = (id: number) => {
+    const deleted = items.find(i => i.id === id);
     setItems(prev => prev.filter(i => i.id !== id));
     if (selected?.id === id) setSelected(null);
+    if (deleted) showToast('${spec.primaryEntity} deleted', deleted);
+  };
+
+  const handleUndo = () => {
+    if (toast?.undoItem) { setItems(prev => [toast.undoItem!, ...prev]); setToast(null); }
+  };
+
+  const cycleStatus = (id: number) => {
+    const order: Status[] = ['pending', 'active', 'completed', 'archived'];
+    setItems(prev => prev.map(i => {
+      if (i.id !== id) return i;
+      const next = order[(order.indexOf(i.status) + 1) % order.length];
+      return { ...i, status: next };
+    }));
   };
 
   const toggleSort = (field: typeof sortField) => {
@@ -133,14 +204,26 @@ export default function App() {
     }, []);
   }, [items]);
 
+  // ── Animated KPIs ──
+  const animTotal = useCountUp(items.length);
+  const animActive = useCountUp(items.filter(i => i.status === 'active').length);
+  const animCompleted = useCountUp(items.filter(i => i.status === 'completed').length);
+  const animValue = useCountUp(items.reduce((s, i) => s + i.value, 0));
+  const liveKpis = [
+    { ...INITIAL_KPIS[0], value: String(animTotal) },
+    { ...INITIAL_KPIS[1], value: String(animActive) },
+    { ...(INITIAL_KPIS[2] || INITIAL_KPIS[0]), value: String(animCompleted) },
+    { ...(INITIAL_KPIS[3] || INITIAL_KPIS[0]), value: fmt(animValue) },
+  ];
+
   // ── KPI Section ──
   const KpiSection = () => (
     <div className="space-y-6 mb-6">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {INITIAL_KPIS.map((kpi, i) => (
+        {liveKpis.map((kpi, i) => (
           <div key={i} className="${t.card} ${t.cardBorder} border rounded-xl p-4 card-hover" style={{ animationDelay: \`\${i * 80}ms\` }}>
             <p className="${t.textMuted} text-xs font-medium uppercase tracking-wide">{kpi.label}</p>
-            <p className="${t.text} text-2xl font-bold mt-1">{kpi.value}</p>
+            <p className="${t.text} text-2xl font-bold mt-1 animate-count">{kpi.value}</p>
             <div className={\`flex items-center gap-1 mt-2 text-sm \${kpi.trendUp ? '${t.success}' : '${t.danger}'}\`}>
               {kpi.trendUp ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
               <span>{kpi.trend}</span>
@@ -221,7 +304,7 @@ export default function App() {
             {filtered.map(item => (
               <tr key={item.id} onClick={() => setSelected(item)} className="${isDark ? 'hover:bg-gray-800/50' : 'hover:bg-gray-50'} cursor-pointer transition-colors">
                 <td className="px-4 py-3"><span className="${t.text} text-sm font-medium">{item.name}</span></td>
-                <td className="px-4 py-3"><span className={\`text-xs px-2 py-0.5 rounded-full \${STATUS_COLORS[item.status]}\`}>{item.status}</span></td>
+                <td className="px-4 py-3"><button onClick={(e) => { e.stopPropagation(); cycleStatus(item.id); }} className={\`text-xs px-2 py-0.5 rounded-full cursor-pointer hover:opacity-80 transition-opacity \${STATUS_COLORS[item.status]}\`} title="Click to cycle status">{item.status}</button></td>
                 <td className="px-4 py-3"><span className={\`text-xs px-2 py-0.5 rounded \${PRIORITY_COLORS[item.priority]}\`}>{item.priority}</span></td>
                 <td className="px-4 py-3 ${t.textMuted} text-sm">{item.category}</td>
                 <td className="px-4 py-3 ${t.text} text-sm font-mono">{fmt(item.value)}</td>
@@ -366,7 +449,7 @@ export default function App() {
             <div className="flex items-center gap-3">
               <div className="relative">
                 <Search className="w-4 h-4 ${t.textSubtle} absolute left-3 top-1/2 -translate-y-1/2" />
-                <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search..." className="pl-9 pr-3 py-1.5 rounded-lg ${t.input} text-sm w-48 focus:outline-none focus:ring-2 focus:ring-${isDark ? 'indigo' : 'blue'}-500" />
+                <input ref={searchRef} value={search} onChange={e => setSearch(e.target.value)} placeholder="Search... (Ctrl+K)" className="pl-9 pr-3 py-1.5 rounded-lg ${t.input} text-sm w-48 focus:outline-none focus:ring-2 focus:ring-${isDark ? 'indigo' : 'blue'}-500" />
               </div>
               <select value={statusFilter} onChange={e => setStatusFilter(e.target.value as any)} className="px-3 py-1.5 rounded-lg ${t.input} text-sm">
                 <option value="all">All Status</option>
@@ -376,6 +459,11 @@ export default function App() {
                 <option value="all">All Categories</option>
                 {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
+              <button onClick={() => exportCSV(filtered)} className="${t.textMuted} hover:${isDark ? 'text-white' : 'text-gray-900'} p-1.5 rounded-lg ${isDark ? 'hover:bg-gray-800' : 'hover:bg-gray-100'} transition-colors" title="Export CSV"><Download className="w-4 h-4" /></button>
+              <button onClick={() => setNotifications(0)} className="relative ${t.textMuted} hover:${isDark ? 'text-white' : 'text-gray-900'} p-1.5 rounded-lg ${isDark ? 'hover:bg-gray-800' : 'hover:bg-gray-100'} transition-colors" title="Notifications">
+                <Bell className="w-4 h-4" />
+                {notifications > 0 && <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center animate-pulse-glow">{notifications}</span>}
+              </button>
               <button onClick={() => { setEditItem(null); setShowModal(true); }} className="${t.primary} text-white px-4 py-1.5 rounded-lg text-sm font-medium ${t.primaryHover} transition-colors flex items-center gap-2">
                 <Plus className="w-4 h-4" />Add ${spec.primaryEntity}
               </button>
@@ -402,14 +490,40 @@ export default function App() {
         )}
 
         <div className="p-6">
-          {(view === 'Dashboard' || VIEWS.length === 1) && <KpiSection />}
-          {view === 'Board' ? <BoardView /> : <ListView />}
+          {loading ? (
+            <div className="space-y-4">
+              {[...Array(6)].map((_, i) => (
+                <div key={i} className="${t.card} ${t.cardBorder} border rounded-xl p-4 animate-shimmer" style={{ animationDelay: \`\${i * 100}ms\` }}>
+                  <div className="h-4 ${isDark ? 'bg-gray-800' : 'bg-gray-200'} rounded w-3/4 mb-2" />
+                  <div className="h-3 ${isDark ? 'bg-gray-800' : 'bg-gray-200'} rounded w-1/2" />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <>
+              {(view === 'Dashboard' || VIEWS.length === 1) && <KpiSection />}
+              {(statusFilter !== 'all' || categoryFilter !== 'all' || search) && (
+                <p className="${t.textMuted} text-xs mb-3">Showing <strong className="${t.text}">{filtered.length}</strong> of {items.length} ${spec.primaryEntityPlural.toLowerCase()}</p>
+              )}
+              {view === 'Board' ? <BoardView /> : <ListView />}
+            </>
+          )}
         </div>
       </main>
 
       {/* Overlays */}
       {showModal && <Modal />}
       <DetailPanel />
+
+      {/* Toast with Undo */}
+      {toast && (
+        <div className="fixed bottom-6 right-6 z-[60] animate-slide-up">
+          <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-emerald-600 text-white text-sm font-medium shadow-2xl">
+            <Check className="w-4 h-4" /><span>{toast.message}</span>
+            {toast.undoItem && <button onClick={handleUndo} className="ml-2 px-2 py-0.5 rounded bg-white/20 hover:bg-white/30 text-xs font-bold transition-colors">Undo</button>}
+          </div>
+        </div>
+      )}
     </div>
   );
 }`;
