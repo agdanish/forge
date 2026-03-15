@@ -17,12 +17,13 @@ export function renderDashboardShell(spec: AppSpec): string {
   const seedJSON = JSON.stringify(spec.seedData);
   const categoriesJSON = JSON.stringify(spec.categories);
 
-  return `import { useState, useMemo } from 'react';
+  return `import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import {
   Search, TrendingUp, TrendingDown, BarChart3, PieChart as PieChartIcon, Activity,
   ArrowUpDown, Filter, Download, RefreshCw, ChevronDown, Eye,
   LayoutDashboard, List, Settings, Menu, X, AlertCircle,
-  CheckCircle2, Clock, Archive, Users, DollarSign, Target, Zap
+  CheckCircle2, Clock, Archive, Users, DollarSign, Target, Zap,
+  Plus, Trash2, Edit3, Check, Bell, Keyboard, Command
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -61,6 +62,37 @@ const INITIAL_DATA: DataRecord[] = (${seedJSON} as Omit<DataRecord, 'id'>[]).map
 const STATUS_COLORS: { [key in Status]: string } = { ${statusColors} };
 const fmt = (n: number) => n >= 1_000_000 ? '$' + (n / 1_000_000).toFixed(1) + 'M' : n >= 1000 ? '$' + (n / 1000).toFixed(0) + 'k' : '$' + n;
 
+// ── Animated Counter Hook ──
+function useCountUp(end: number, duration = 1200) {
+  const [value, setValue] = useState(0);
+  const ref = useRef<number>(0);
+  useEffect(() => {
+    const start = performance.now();
+    const tick = (now: number) => {
+      const elapsed = now - start;
+      const progress = Math.min(elapsed / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setValue(Math.round(eased * end));
+      if (progress < 1) ref.current = requestAnimationFrame(tick);
+    };
+    ref.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(ref.current);
+  }, [end, duration]);
+  return value;
+}
+
+// ── Export CSV Utility ──
+function exportCSV(data: DataRecord[]) {
+  const headers = ['Name', 'Status', 'Priority', 'Category', 'Value', 'Date', 'Assignee'];
+  const rows = data.map(r => [r.name, r.status, r.priority, r.category, r.value, r.date, r.assignee].join(','));
+  const csv = [headers.join(','), ...rows].join('\\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = '${spec.appName.replace(/[^a-zA-Z0-9]/g, '_')}_export.csv';
+  a.click(); URL.revokeObjectURL(url);
+}
+
 export default function App() {
   const [tab, setTab] = useState<Tab>('overview');
   const [search, setSearch] = useState('');
@@ -71,9 +103,49 @@ export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [timeRange, setTimeRange] = useState('30d');
   const [selectedRecord, setSelectedRecord] = useState<DataRecord | null>(null);
+  const [data, setData] = useState(INITIAL_DATA);
+  const [toast, setToast] = useState<string | null>(null);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [newDesc, setNewDesc] = useState('');
+  const [notifications, setNotifications] = useState(3);
+  const searchRef = useRef<HTMLInputElement>(null);
+
+  const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 2500); };
+
+  // ── Keyboard Shortcuts ──
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') { e.preventDefault(); searchRef.current?.focus(); setTab('records'); }
+      if (e.key === 'Escape') { setSelectedRecord(null); setShowAddModal(false); }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
+
+  // ── CRUD Handlers ──
+  const handleAdd = () => {
+    if (!newName.trim()) return;
+    const item: DataRecord = { id: Date.now(), name: newName, description: newDesc || 'New item', status: 'active', priority: 'medium', category: CATEGORIES[0], value: Math.floor(Math.random() * 5000) + 500, date: new Date().toISOString().split('T')[0], assignee: 'You' };
+    setData(prev => [item, ...prev]);
+    setNewName(''); setNewDesc(''); setShowAddModal(false);
+    showToast('✓ ${spec.primaryEntity} added successfully');
+    setNotifications(n => n + 1);
+  };
+
+  const handleDelete = (id: number) => {
+    setData(prev => prev.filter(r => r.id !== id));
+    setSelectedRecord(null);
+    showToast('✓ ${spec.primaryEntity} deleted');
+  };
+
+  const handleStatusChange = (id: number, status: Status) => {
+    setData(prev => prev.map(r => r.id === id ? { ...r, status } : r));
+    showToast('✓ Status updated to ' + status);
+  };
 
   const filtered = useMemo(() => {
-    let r = INITIAL_DATA.filter(item => {
+    let r = data.filter(item => {
       if (search && !item.name.toLowerCase().includes(search.toLowerCase())) return false;
       if (statusFilter !== 'all' && item.status !== statusFilter) return false;
       if (categoryFilter !== 'all' && item.category !== categoryFilter) return false;
@@ -86,22 +158,28 @@ export default function App() {
       return d * (new Date(a.date).getTime() - new Date(b.date).getTime());
     });
     return r;
-  }, [search, statusFilter, categoryFilter, sortField, sortAsc]);
+  }, [data, search, statusFilter, categoryFilter, sortField, sortAsc]);
 
   // ── Stats ──
-  const totalValue = INITIAL_DATA.reduce((s, r) => s + r.value, 0);
-  const avgValue = totalValue / INITIAL_DATA.length;
+  const totalValue = data.reduce((s, r) => s + r.value, 0);
+  const avgValue = totalValue / data.length;
   const statusCounts = { active: 0, pending: 0, completed: 0, archived: 0 };
-  INITIAL_DATA.forEach(r => statusCounts[r.status]++);
+  data.forEach(r => statusCounts[r.status]++);
   const categoryCounts: { [key: string]: number } = {};
-  INITIAL_DATA.forEach(r => { categoryCounts[r.category] = (categoryCounts[r.category] || 0) + 1; });
+  data.forEach(r => { categoryCounts[r.category] = (categoryCounts[r.category] || 0) + 1; });
   const categoryValues: { [key: string]: number } = {};
-  INITIAL_DATA.forEach(r => { categoryValues[r.category] = (categoryValues[r.category] || 0) + r.value; });
+  data.forEach(r => { categoryValues[r.category] = (categoryValues[r.category] || 0) + r.value; });
   const maxCatValue = Math.max(...Object.values(categoryValues), 1);
 
   const toggleSort = (f: typeof sortField) => {
     if (sortField === f) setSortAsc(!sortAsc); else { setSortField(f); setSortAsc(true); }
   };
+
+  // ── Animated KPI Values ──
+  const animTotal = useCountUp(data.length);
+  const animActive = useCountUp(statusCounts.active);
+  const animCompleted = useCountUp(statusCounts.completed);
+  const animValue = useCountUp(totalValue);
 
   // ── KPI Cards ──
   const KpiGrid = () => (
@@ -109,12 +187,13 @@ export default function App() {
       {KPIS.map((kpi, i) => {
         const icons = [Target, DollarSign, Users, Zap];
         const Icon = icons[i % icons.length];
+        const animValues = [animTotal, animValue, animActive, animCompleted];
         return (
           <div key={i} className="${t.card} ${t.cardBorder} border rounded-xl p-5 card-hover animate-slide-up" style={{ animationDelay: \`\${i * 80}ms\` }}>
             <div className="flex items-start justify-between">
               <div>
                 <p className="${t.textMuted} text-xs font-medium uppercase tracking-wide">{kpi.label}</p>
-                <p className="${t.text} text-3xl font-bold mt-2">{kpi.value}</p>
+                <p className="${t.text} text-3xl font-bold mt-2 animate-count">{i === 1 ? fmt(animValues[i]) : animValues[i].toLocaleString()}</p>
               </div>
               <div className="p-2 rounded-lg ${isDark ? 'bg-gray-800' : 'bg-gray-100'}">
                 <Icon className="w-5 h-5 ${t.accent}" />
@@ -135,7 +214,7 @@ export default function App() {
   const barData = Object.entries(categoryValues).sort(([,a],[,b]) => b - a).map(([name, value]) => ({ name, value }));
   const pieData = (['active', 'pending', 'completed', 'archived'] as Status[]).map(s => ({ name: s, value: statusCounts[s] }));
   const PIE_COLORS = ['${isDark ? '#34d399' : '#10b981'}', '${isDark ? '#fbbf24' : '#f59e0b'}', '${isDark ? '#60a5fa' : '#3b82f6'}', '${isDark ? '#6b7280' : '#9ca3af'}'];
-  const trendData = INITIAL_DATA.slice().sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()).reduce((acc: { date: string; value: number; cumulative: number }[], r) => {
+  const trendData = data.slice().sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()).reduce((acc: { date: string; value: number; cumulative: number }[], r) => {
     const prev = acc.length ? acc[acc.length - 1].cumulative : 0;
     acc.push({ date: r.date, value: r.value, cumulative: prev + r.value });
     return acc;
@@ -219,7 +298,7 @@ export default function App() {
         <Activity className="w-5 h-5 ${t.textMuted}" />
       </div>
       <div className="space-y-3">
-        {INITIAL_DATA.slice(0, 6).map((r, i) => (
+        {data.slice(0, 6).map((r, i) => (
           <div key={i} onClick={() => setSelectedRecord(r as any)} className="flex items-start gap-3 cursor-pointer ${isDark ? 'hover:bg-gray-800/30' : 'hover:bg-gray-50'} rounded-lg p-1 -m-1 transition-colors">
             <div className="mt-1 w-2 h-2 rounded-full ${isDark ? 'bg-indigo-400' : 'bg-blue-500'} flex-shrink-0" />
             <div className="flex-1 min-w-0">
@@ -238,7 +317,7 @@ export default function App() {
     <div className="${t.card} ${t.cardBorder} border rounded-xl p-5">
       <h3 className="${t.text} font-semibold mb-4">Top ${spec.primaryEntityPlural} by Value</h3>
       <div className="space-y-3">
-        {[...INITIAL_DATA].sort((a, b) => b.value - a.value).slice(0, 5).map((r, i) => (
+        {[...data].sort((a, b) => b.value - a.value).slice(0, 5).map((r, i) => (
           <div key={i} className="flex items-center gap-3">
             <span className={\`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold \${i === 0 ? '${isDark ? 'bg-amber-900/50 text-amber-300' : 'bg-amber-100 text-amber-700'}' : '${isDark ? 'bg-gray-800 text-gray-400' : 'bg-gray-100 text-gray-500'}'}\`}>{i + 1}</span>
             <div className="flex-1 min-w-0">
@@ -337,7 +416,7 @@ export default function App() {
                 <>
                   <div className="relative">
                     <Search className="w-4 h-4 ${t.textSubtle} absolute left-3 top-1/2 -translate-y-1/2" />
-                    <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search..." className="pl-9 pr-3 py-1.5 rounded-lg ${t.input} text-sm w-48 focus:outline-none" />
+                    <input ref={searchRef} value={search} onChange={e => setSearch(e.target.value)} placeholder="Search... (Ctrl+K)" className="pl-9 pr-3 py-1.5 rounded-lg ${t.input} text-sm w-48 focus:outline-none focus:ring-2 focus:ring-indigo-500/40" />
                   </div>
                   <select value={statusFilter} onChange={e => setStatusFilter(e.target.value as any)} className="px-3 py-1.5 rounded-lg ${t.input} text-sm">
                     <option value="all">All Status</option>
@@ -345,6 +424,14 @@ export default function App() {
                   </select>
                 </>
               )}
+              <button onClick={() => setShowAddModal(true)} className="${t.primary} ${t.primaryHover} text-white px-3 py-1.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5"><Plus className="w-4 h-4" />Add</button>
+              <button onClick={() => { exportCSV(filtered); showToast('✓ CSV exported'); }} className="${isDark ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'} p-2 rounded-lg transition-colors" title="Export CSV"><Download className="w-4 h-4" /></button>
+              <div className="relative">
+                <button className="${isDark ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'} p-2 rounded-lg transition-colors" onClick={() => { setNotifications(0); showToast('Notifications cleared'); }}>
+                  <Bell className="w-4 h-4" />
+                </button>
+                {notifications > 0 && <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full text-[10px] text-white flex items-center justify-center font-bold animate-pulse-glow">{notifications}</span>}
+              </div>
               <button className="${isDark ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'} p-2 rounded-lg transition-colors"><RefreshCw className="w-4 h-4" /></button>
             </div>
           </div>
@@ -400,12 +487,58 @@ export default function App() {
                 <div><span className="${t.textMuted} text-xs uppercase tracking-wide">Assignee</span><p className="${t.textMuted} text-sm mt-1">{selectedRecord.assignee}</p></div>
               </div>
             </div>
-            <div className="px-6 pb-6">
-              <button onClick={() => setSelectedRecord(null)} className="w-full ${t.primary} ${t.primaryHover} text-white py-2.5 rounded-lg text-sm font-medium transition-colors">Close</button>
+            <div className="px-6 pb-6 flex gap-3">
+              <button onClick={() => { handleStatusChange(selectedRecord.id, selectedRecord.status === 'completed' ? 'active' : 'completed'); setSelectedRecord(null); }} className="flex-1 ${t.primary} ${t.primaryHover} text-white py-2.5 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2">
+                <Check className="w-4 h-4" />{selectedRecord.status === 'completed' ? 'Reopen' : 'Complete'}
+              </button>
+              <button onClick={() => handleDelete(selectedRecord.id)} className="px-4 py-2.5 rounded-lg text-sm font-medium bg-red-600 hover:bg-red-700 text-white transition-colors flex items-center gap-2">
+                <Trash2 className="w-4 h-4" />Delete
+              </button>
             </div>
           </div>
         </div>
       )}
+
+      {/* Add Modal */}
+      {showAddModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setShowAddModal(false)}>
+          <div className="${t.card} ${t.cardBorder} border rounded-2xl w-full max-w-md mx-4 shadow-2xl animate-scale-in" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-6 border-b ${isDark ? 'border-gray-800' : 'border-gray-200'}">
+              <h3 className="text-lg font-semibold">Add New ${spec.primaryEntity}</h3>
+              <button onClick={() => setShowAddModal(false)} className="${t.textMuted}"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="${t.textMuted} text-xs uppercase tracking-wide">Name</label>
+                <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Enter name..." className="mt-1 w-full px-3 py-2 rounded-lg ${t.input} text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/40" autoFocus />
+              </div>
+              <div>
+                <label className="${t.textMuted} text-xs uppercase tracking-wide">Description</label>
+                <textarea value={newDesc} onChange={e => setNewDesc(e.target.value)} placeholder="Enter description..." className="mt-1 w-full px-3 py-2 rounded-lg ${t.input} text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/40 h-20 resize-none" />
+              </div>
+            </div>
+            <div className="px-6 pb-6">
+              <button onClick={handleAdd} disabled={!newName.trim()} className="w-full ${t.primary} ${t.primaryHover} text-white py-2.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+                <Plus className="w-4 h-4" />Add ${spec.primaryEntity}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Toast */}
+      {toast && (
+        <div className="fixed bottom-6 right-6 z-[60] animate-slide-up">
+          <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-emerald-600 text-white text-sm font-medium shadow-2xl">
+            <Check className="w-4 h-4" />{toast}
+          </div>
+        </div>
+      )}
+
+      {/* Keyboard Shortcut Hint */}
+      <div className="fixed bottom-6 left-6 ${t.textSubtle} text-xs flex items-center gap-1.5 opacity-50">
+        <Keyboard className="w-3 h-3" />Ctrl+K search \u2022 Esc close
+      </div>
     </div>
   );
 }`;

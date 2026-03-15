@@ -29,13 +29,42 @@ export function renderKanbanShell(spec: AppSpec): string {
     : ['Backlog', 'In Progress', 'Review', 'Done'];
   const stagesJSON = JSON.stringify(stages);
 
-  return `import { useState, useMemo } from 'react';
+  return `import { useState, useMemo, useEffect, useRef } from 'react';
 import {
   Search, Filter, ChevronRight, ChevronLeft, X, Eye, Clock,
   AlertCircle, CheckCircle2, Archive, User, Calendar, Tag,
   MoreVertical, Plus, ArrowRight, LayoutGrid, List, TrendingUp, TrendingDown,
-  GripVertical, Menu, Check, Trash2
+  GripVertical, Menu, Check, Trash2, Download, Bell, Keyboard
 } from 'lucide-react';
+
+// ── Animated Counter Hook ──
+function useCountUp(end: number, duration = 1200) {
+  const [value, setValue] = useState(0);
+  const ref = useRef<number>(0);
+  useEffect(() => {
+    const start = performance.now();
+    const tick = (now: number) => {
+      const elapsed = now - start;
+      const progress = Math.min(elapsed / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setValue(Math.round(eased * end));
+      if (progress < 1) ref.current = requestAnimationFrame(tick);
+    };
+    ref.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(ref.current);
+  }, [end, duration]);
+  return value;
+}
+
+// ── Export CSV ──
+function exportCSV(data: any[]) {
+  const headers = ['Name', 'Status', 'Priority', 'Stage', 'Value', 'Assignee', 'Date'];
+  const rows = data.map((r: any) => [r.name, r.status, r.priority, r.stage, r.value, r.assignee, r.date].join(','));
+  const csv = [headers.join(','), ...rows].join('\\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = 'kanban_export.csv'; a.click(); URL.revokeObjectURL(url);
+}
 
 interface KpiCard { label: string; value: string; trend: string; trendUp: boolean; }
 interface DataRecord {
@@ -69,8 +98,20 @@ export default function App() {
   const [newName, setNewName] = useState('');
   const [newDesc, setNewDesc] = useState('');
   const [toast, setToast] = useState<string | null>(null);
+  const [notifications, setNotifications] = useState(3);
+  const searchRef = useRef<HTMLInputElement>(null);
 
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 2500); };
+
+  // ── Keyboard Shortcuts ──
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') { e.preventDefault(); searchRef.current?.focus(); }
+      if (e.key === 'Escape') { setSelectedItem(null); setShowAddForm(false); setMenuOpen(null); }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
 
   const handleAddItem = () => {
     if (!newName.trim()) return;
@@ -135,6 +176,15 @@ export default function App() {
             <button onClick={() => setShowAddForm(true)} className="${t.primary} text-white px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-1.5 hover:opacity-90 transition-all" aria-label="Add new item">
               <Plus className="w-4 h-4" /> Add
             </button>
+            <button onClick={() => { exportCSV(items); showToast('✓ CSV exported'); }} className="${isDark ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'} p-2 rounded-lg transition-colors" title="Export CSV">
+              <Download className="w-4 h-4" />
+            </button>
+            <div className="relative">
+              <button className="${isDark ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'} p-2 rounded-lg transition-colors" onClick={() => { setNotifications(0); showToast('Notifications cleared'); }}>
+                <Bell className="w-4 h-4" />
+              </button>
+              {notifications > 0 && <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full text-[10px] text-white flex items-center justify-center font-bold animate-pulse-glow">{notifications}</span>}
+            </div>
             <button onClick={() => setViewMode('board')} className={\`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors \${viewMode === 'board' ? '${t.primary} text-white' : '${t.textMuted} hover:${t.text}'}\`}>
               <LayoutGrid className="w-4 h-4" />
             </button>
@@ -167,7 +217,7 @@ export default function App() {
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 ${t.textMuted}" />
             <input
-              type="text" placeholder="Search ${spec.primaryEntityPlural.toLowerCase()}..." value={search} onChange={e => setSearch(e.target.value)}
+              ref={searchRef} type="text" placeholder="Search ${spec.primaryEntityPlural.toLowerCase()}... (Ctrl+K)" value={search} onChange={e => setSearch(e.target.value)}
               className="w-full pl-9 pr-4 py-2 rounded-lg border ${t.cardBorder} ${t.input} ${t.text} text-sm focus:outline-none focus:ring-2 focus:ring-${isDark ? 'indigo' : 'blue'}-500/50"
             />
           </div>
@@ -403,6 +453,11 @@ export default function App() {
 
       {/* Click-outside to close menu */}
       {menuOpen && <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(null)} />}
+
+      {/* Keyboard Shortcut Hint */}
+      <div className="fixed bottom-4 left-4 ${t.textSubtle} text-xs flex items-center gap-1.5 opacity-50">
+        <Keyboard className="w-3 h-3" />Ctrl+K search \u2022 Esc close
+      </div>
     </div>
   );
 }

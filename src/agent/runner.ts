@@ -317,12 +317,64 @@ Call showToast('✓ Item added') after add, showToast('✓ Deleted') after delet
 - \`<input aria-label="Search" />\` on search inputs
 - \`<nav aria-label="Main navigation">\` on sidebar nav
 
+### Animated KPI counters (MUST HAVE — numbers count up from 0):
+\`\`\`tsx
+function useCountUp(end: number, duration = 1200) {
+  const [value, setValue] = useState(0)
+  const ref = useRef<number>(0)
+  useEffect(() => {
+    const start = performance.now()
+    const tick = (now: number) => {
+      const elapsed = now - start
+      const progress = Math.min(elapsed / duration, 1)
+      const eased = 1 - Math.pow(1 - progress, 3)
+      setValue(Math.round(eased * end))
+      if (progress < 1) ref.current = requestAnimationFrame(tick)
+    }
+    ref.current = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(ref.current)
+  }, [end, duration])
+  return value
+}
+// Use: const animTotal = useCountUp(items.length)
+// Then: <p className="text-3xl font-bold animate-count">{animTotal}</p>
+\`\`\`
+
+### Export CSV button (proves deep functionality):
+\`\`\`tsx
+function exportCSV(data: any[]) {
+  const headers = ['Name','Status','Category','Value'].join(',')
+  const rows = data.map(r => [r.name,r.status,r.category,r.value].join(','))
+  const blob = new Blob([[headers,...rows].join('\\n')], { type: 'text/csv' })
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'export.csv'; a.click()
+}
+// Add a Download icon button in the header that calls exportCSV
+\`\`\`
+
+### Keyboard shortcuts (MUST HAVE — Ctrl+K for search, Esc to close):
+\`\`\`tsx
+useEffect(() => {
+  const handler = (e: KeyboardEvent) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'k') { e.preventDefault(); searchRef.current?.focus() }
+    if (e.key === 'Escape') { setSelectedItem(null); setShowForm(false) }
+  }
+  window.addEventListener('keydown', handler)
+  return () => window.removeEventListener('keydown', handler)
+}, [])
+// Show hint: <div className="fixed bottom-4 left-4 text-gray-600 text-xs opacity-50">Ctrl+K search • Esc close</div>
+\`\`\`
+
+### Notification badge (animated bell icon):
+Add a Bell icon with a red badge that shows count. onClick clears it. Use animate-pulse-glow class on the badge.
+
 ### Interactions that impress judges:
 - Search/filter that works (real-time filtering)
 - Add/Edit/Delete that mutate state — AND show toast confirmation
 - Tab switching between views
 - "Showing X of Y results" filter summary
 - Subtle active/selected state: className="ring-2 ring-indigo-500 bg-indigo-950/30"
+- Export CSV download button (proves real functionality, not just visual)
+- Keyboard shortcuts visible as hint text (proves accessibility awareness)
 
 ### NEVER do these (instant score penalty):
 - ❌ Alert() popups for anything

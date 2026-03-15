@@ -192,9 +192,38 @@ function generateSeedData(domain: string, prompt: string): { items: string; cate
 
 function generateUniversalApp(appName: string, domain: string, prompt: string): string {
   const seedData = generateSeedData(domain, prompt);
-  return `import { useState, useEffect, useRef } from 'react'
-import { Search, Plus, X, Edit, Trash2, BarChart2, Users, Settings, Bell, Check, AlertCircle, Home, Menu, ChevronRight, TrendingUp, TrendingDown, Filter } from 'lucide-react'
+  return `import { useState, useEffect, useRef, useCallback } from 'react'
+import { Search, Plus, X, Edit, Trash2, BarChart2, Users, Settings, Bell, Check, AlertCircle, Home, Menu, ChevronRight, TrendingUp, TrendingDown, Filter, Download, Keyboard } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, AreaChart, Area, PieChart, Pie, Cell } from 'recharts'
+
+// ── Animated Counter Hook ──
+function useCountUp(end: number, duration = 1200) {
+  const [value, setValue] = useState(0)
+  const ref = useRef<number>(0)
+  useEffect(() => {
+    const start = performance.now()
+    const tick = (now: number) => {
+      const elapsed = now - start
+      const progress = Math.min(elapsed / duration, 1)
+      const eased = 1 - Math.pow(1 - progress, 3)
+      setValue(Math.round(eased * end))
+      if (progress < 1) ref.current = requestAnimationFrame(tick)
+    }
+    ref.current = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(ref.current)
+  }, [end, duration])
+  return value
+}
+
+// ── Export CSV ──
+function exportCSV(data: any[]) {
+  const headers = ['Name', 'Status', 'Priority', 'Category', 'Value', 'Assignee', 'Date']
+  const rows = data.map((r: any) => [r.name, r.status, r.priority, r.category, r.value, r.assignee, r.date].join(','))
+  const csv = [headers.join(','), ...rows].join('\\n')
+  const blob = new Blob([csv], { type: 'text/csv' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a'); a.href = url; a.download = 'data_export.csv'; a.click(); URL.revokeObjectURL(url)
+}
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -235,8 +264,26 @@ export default function App() {
   const [formPriority, setFormPriority] = useState<'high' | 'medium' | 'low'>('medium')
   const [formValue, setFormValue] = useState('')
   const [toast, setToast] = useState<string | null>(null)
+  const [notifications, setNotifications] = useState(3)
+  const searchRef = useRef<HTMLInputElement>(null)
 
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 2500) }
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') { e.preventDefault(); searchRef.current?.focus() }
+      if (e.key === 'Escape') { setSelectedItem(null); setShowForm(false) }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [])
+
+  // Animated KPI values
+  const animTotal = useCountUp(items.length)
+  const animActive = useCountUp(items.filter(i => i.status === 'active').length)
+  const animCompleted = useCountUp(items.filter(i => i.status === 'completed').length)
+  const animValue = useCountUp(items.reduce((s, i) => s + i.value, 0))
 
   const filtered = items.filter(item => {
     const matchesSearch = item.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -363,7 +410,7 @@ export default function App() {
             </button>
             <div className="relative">
               <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
-              <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search items..."
+              <input ref={searchRef} value={search} onChange={e => setSearch(e.target.value)} placeholder="Search... (Ctrl+K)"
                 className="pl-10 pr-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent w-36 sm:w-48 lg:w-72" />
             </div>
           </div>
@@ -372,9 +419,12 @@ export default function App() {
               className="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-4 py-2 rounded-lg transition-all duration-200 flex items-center gap-2 text-sm">
               <Plus className="w-4 h-4" /> Add New
             </button>
-            <button className="relative text-gray-400 hover:text-white transition-colors">
+            <button onClick={() => { exportCSV(filtered); showToast('✓ CSV exported') }} className="text-gray-400 hover:text-white transition-colors p-2 bg-gray-800 rounded-lg" title="Export CSV">
+              <Download className="w-4 h-4" />
+            </button>
+            <button onClick={() => { setNotifications(0); showToast('Notifications cleared') }} className="relative text-gray-400 hover:text-white transition-colors">
               <Bell className="w-5 h-5" />
-              <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full" />
+              {notifications > 0 && <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full text-[10px] text-white flex items-center justify-center font-bold animate-pulse-glow">{notifications}</span>}
             </button>
           </div>
         </header>
@@ -397,17 +447,17 @@ export default function App() {
               {/* KPI Cards */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-8">
                 {[
-                  { label: 'Total Items', value: stats.total, icon: Menu, trend: '+12%', up: true, color: 'indigo' },
-                  { label: 'Active', value: stats.active, icon: AlertCircle, trend: '+8%', up: true, color: 'blue' },
-                  { label: 'Completed', value: stats.completed, icon: Check, trend: '+24%', up: true, color: 'emerald' },
-                  { label: 'Total Value', value: \`$\${(stats.totalValue / 1000).toFixed(0)}k\`, icon: TrendingUp, trend: '-3%', up: false, color: 'purple' },
+                  { label: 'Total Items', value: animTotal, icon: Menu, trend: '+12%', up: true, color: 'indigo' },
+                  { label: 'Active', value: animActive, icon: AlertCircle, trend: '+8%', up: true, color: 'blue' },
+                  { label: 'Completed', value: animCompleted, icon: Check, trend: '+24%', up: true, color: 'emerald' },
+                  { label: 'Total Value', value: \`$\${(animValue / 1000).toFixed(0)}k\`, icon: TrendingUp, trend: '-3%', up: false, color: 'purple' },
                 ].map(({ label, value, icon: Icon, trend, up, color }, idx) => (
                   <div key={label} className="bg-gray-900 border border-gray-800 rounded-2xl p-6 card-hover animate-slide-up" style={{ animationDelay: \`\${idx * 80}ms\` }}>
                     <div className="flex items-center justify-between mb-4">
                       <span className="text-sm text-gray-400">{label}</span>
                       <Icon className={\`w-5 h-5 text-\${color}-400\`} />
                     </div>
-                    <p className="text-3xl font-bold">{value}</p>
+                    <p className="text-3xl font-bold animate-count">{value}</p>
                     <div className={\`flex items-center gap-1 mt-2 text-sm \${up ? 'text-emerald-400' : 'text-red-400'}\`}>
                       {up ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
                       <span>{trend} vs last month</span>
@@ -656,6 +706,11 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {/* Keyboard Shortcut Hint */}
+      <div className="fixed bottom-4 left-4 text-gray-600 text-xs flex items-center gap-1.5 opacity-50">
+        <Keyboard className="w-3 h-3" />Ctrl+K search \u2022 Esc close
+      </div>
     </div>
   )
 }

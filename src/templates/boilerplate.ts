@@ -165,6 +165,33 @@ createRoot(document.getElementById('root')!).render(<StrictMode><App /></StrictM
   .progress-smooth {
     transition: width 0.6s cubic-bezier(0.16, 1, 0.3, 1);
   }
+
+  /* Shimmer skeleton loading */
+  @keyframes shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+  }
+  .animate-shimmer {
+    background: linear-gradient(90deg, transparent 25%, rgba(99, 102, 241, 0.08) 50%, transparent 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s ease-in-out infinite;
+  }
+
+  /* Pulse glow for notifications */
+  @keyframes pulseGlow {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.4); }
+    50% { box-shadow: 0 0 0 6px rgba(99, 102, 241, 0); }
+  }
+  .animate-pulse-glow {
+    animation: pulseGlow 2s ease-in-out infinite;
+  }
+
+  /* Number counter tick */
+  @keyframes countUp {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .animate-count { animation: countUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
 }
 
 /* Smooth scrollbar */
