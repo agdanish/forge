@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="logo/AeroFyta.png" alt="AeroFyta — FORGE Agent" width="180" />
+  <img src="logo/AeroFyta-bg-removed.png" alt="AeroFyta — FORGE Agent" width="180" />
 </p>
 
 <h1 align="center">AeroFyta — FORGE</h1>
