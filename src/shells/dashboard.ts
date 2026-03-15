@@ -19,11 +19,15 @@ export function renderDashboardShell(spec: AppSpec): string {
 
   return `import { useState, useMemo } from 'react';
 import {
-  Search, TrendingUp, TrendingDown, BarChart3, PieChart, Activity,
+  Search, TrendingUp, TrendingDown, BarChart3, PieChart as PieChartIcon, Activity,
   ArrowUpDown, Filter, Download, RefreshCw, ChevronDown, Eye,
   LayoutDashboard, List, Settings, Menu, X, AlertCircle,
   CheckCircle2, Clock, Archive, Users, DollarSign, Target, Zap
 } from 'lucide-react';
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  AreaChart, Area, PieChart, Pie, Cell
+} from 'recharts';
 
 // ── Types ──
 type Status = 'active' | 'pending' | 'completed' | 'archived';
@@ -127,59 +131,83 @@ export default function App() {
     </div>
   );
 
-  // ── Bar Chart (CSS-only) ──
-  const BarChart = () => (
+  // ── Recharts Data ──
+  const barData = Object.entries(categoryValues).sort(([,a],[,b]) => b - a).map(([name, value]) => ({ name, value }));
+  const pieData = (['active', 'pending', 'completed', 'archived'] as Status[]).map(s => ({ name: s, value: statusCounts[s] }));
+  const PIE_COLORS = ['${isDark ? '#34d399' : '#10b981'}', '${isDark ? '#fbbf24' : '#f59e0b'}', '${isDark ? '#60a5fa' : '#3b82f6'}', '${isDark ? '#6b7280' : '#9ca3af'}'];
+  const trendData = INITIAL_DATA.slice().sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()).reduce((acc: { date: string; value: number; cumulative: number }[], r) => {
+    const prev = acc.length ? acc[acc.length - 1].cumulative : 0;
+    acc.push({ date: r.date, value: r.value, cumulative: prev + r.value });
+    return acc;
+  }, []);
+
+  // ── Bar Chart (recharts) ──
+  const CategoryBarChart = () => (
     <div className="${t.card} ${t.cardBorder} border rounded-xl p-5">
       <div className="flex items-center justify-between mb-4">
         <h3 className="${t.text} font-semibold">Value by Category</h3>
         <BarChart3 className="w-5 h-5 ${t.textMuted}" />
       </div>
-      <div className="space-y-3">
-        {Object.entries(categoryValues).sort(([,a],[,b]) => b - a).map(([cat, val]) => (
-          <div key={cat} onClick={() => setCategoryFilter(categoryFilter === cat ? 'all' : cat)} className="cursor-pointer group">
-            <div className="flex items-center justify-between mb-1">
-              <span className={\`text-sm transition-colors \${categoryFilter === cat ? '${t.accent} font-semibold' : '${t.textMuted} group-hover:${t.text.replace('text-', 'text-')}'}\`}>{cat}</span>
-              <span className="${t.text} text-sm font-mono">{fmt(val)}</span>
-            </div>
-            <div className="h-2 rounded-full ${isDark ? 'bg-gray-800' : 'bg-gray-200'} overflow-hidden">
-              <div className={\`h-full rounded-full transition-all duration-700 \${categoryFilter === cat ? 'bg-gradient-to-r ${t.gradient} shadow-lg' : categoryFilter === 'all' ? 'bg-gradient-to-r ${t.gradient}' : '${isDark ? 'bg-gray-700' : 'bg-gray-300'}'}\`} style={{ width: \`\${(val / maxCatValue) * 100}%\` }} />
-            </div>
-          </div>
-        ))}
-      </div>
-      {categoryFilter !== 'all' && (
-        <button onClick={() => setCategoryFilter('all')} className="mt-3 text-xs ${t.accent} hover:underline">Clear filter: {categoryFilter}</button>
-      )}
+      <ResponsiveContainer width="100%" height={220}>
+        <BarChart data={barData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="${isDark ? '#374151' : '#e5e7eb'}" />
+          <XAxis dataKey="name" tick={{ fill: '${isDark ? '#9ca3af' : '#6b7280'}', fontSize: 12 }} />
+          <YAxis tickFormatter={(v: number) => fmt(v)} tick={{ fill: '${isDark ? '#9ca3af' : '#6b7280'}', fontSize: 12 }} />
+          <Tooltip contentStyle={{ background: '${isDark ? '#1f2937' : '#ffffff'}', border: '1px solid ${isDark ? '#374151' : '#e5e7eb'}', borderRadius: 8, color: '${isDark ? '#f3f4f6' : '#111827'}' }} formatter={(v: number) => [fmt(v), 'Value']} />
+          <Bar dataKey="value" fill="${isDark ? '#818cf8' : '#6366f1'}" radius={[4, 4, 0, 0]} />
+        </BarChart>
+      </ResponsiveContainer>
     </div>
   );
 
-  // ── Status Donut (CSS-only) ──
+  // ── Status Pie (recharts) ──
   const StatusBreakdown = () => (
     <div className="${t.card} ${t.cardBorder} border rounded-xl p-5">
       <div className="flex items-center justify-between mb-4">
         <h3 className="${t.text} font-semibold">Status Breakdown</h3>
-        <PieChart className="w-5 h-5 ${t.textMuted}" />
+        <PieChartIcon className="w-5 h-5 ${t.textMuted}" />
       </div>
-      <div className="space-y-3">
-        {(['active', 'pending', 'completed', 'archived'] as Status[]).map(s => (
-          <div key={s} className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <span className={\`w-3 h-3 rounded-full \${s === 'active' ? '${isDark ? 'bg-emerald-400' : 'bg-emerald-500'}' : s === 'pending' ? '${isDark ? 'bg-amber-400' : 'bg-amber-500'}' : s === 'completed' ? '${isDark ? 'bg-blue-400' : 'bg-blue-500'}' : '${isDark ? 'bg-gray-500' : 'bg-gray-400'}'}\`} />
-              <span className="${t.textMuted} text-sm capitalize">{s}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="${t.text} text-sm font-semibold">{statusCounts[s]}</span>
-              <span className="${t.textSubtle} text-xs">({Math.round(statusCounts[s] / INITIAL_DATA.length * 100)}%)</span>
-            </div>
+      <ResponsiveContainer width="100%" height={180}>
+        <PieChart>
+          <Pie data={pieData} cx="50%" cy="50%" innerRadius={45} outerRadius={75} paddingAngle={3} dataKey="value">
+            {pieData.map((_, i) => <Cell key={i} fill={PIE_COLORS[i]} />)}
+          </Pie>
+          <Tooltip contentStyle={{ background: '${isDark ? '#1f2937' : '#ffffff'}', border: '1px solid ${isDark ? '#374151' : '#e5e7eb'}', borderRadius: 8, color: '${isDark ? '#f3f4f6' : '#111827'}' }} />
+        </PieChart>
+      </ResponsiveContainer>
+      <div className="flex justify-center gap-4 mt-2">
+        {(['active', 'pending', 'completed', 'archived'] as Status[]).map((s, i) => (
+          <div key={s} className="flex items-center gap-1.5">
+            <span className="w-2.5 h-2.5 rounded-full" style={{ background: PIE_COLORS[i] }} />
+            <span className="${t.textMuted} text-xs capitalize">{s} ({statusCounts[s]})</span>
           </div>
         ))}
       </div>
-      <div className="mt-4 h-3 rounded-full overflow-hidden flex ${isDark ? 'bg-gray-800' : 'bg-gray-200'}">
-        <div className="${isDark ? 'bg-emerald-400' : 'bg-emerald-500'}" style={{ width: \`\${statusCounts.active / INITIAL_DATA.length * 100}%\` }} />
-        <div className="${isDark ? 'bg-amber-400' : 'bg-amber-500'}" style={{ width: \`\${statusCounts.pending / INITIAL_DATA.length * 100}%\` }} />
-        <div className="${isDark ? 'bg-blue-400' : 'bg-blue-500'}" style={{ width: \`\${statusCounts.completed / INITIAL_DATA.length * 100}%\` }} />
-        <div className="${isDark ? 'bg-gray-500' : 'bg-gray-400'}" style={{ width: \`\${statusCounts.archived / INITIAL_DATA.length * 100}%\` }} />
+    </div>
+  );
+
+  // ── Trend Area Chart (recharts) ──
+  const TrendChart = () => (
+    <div className="${t.card} ${t.cardBorder} border rounded-xl p-5">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="${t.text} font-semibold">Value Trend</h3>
+        <Activity className="w-5 h-5 ${t.textMuted}" />
       </div>
+      <ResponsiveContainer width="100%" height={220}>
+        <AreaChart data={trendData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
+          <defs>
+            <linearGradient id="trendGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor="${isDark ? '#818cf8' : '#6366f1'}" stopOpacity={0.3} />
+              <stop offset="95%" stopColor="${isDark ? '#818cf8' : '#6366f1'}" stopOpacity={0} />
+            </linearGradient>
+          </defs>
+          <CartesianGrid strokeDasharray="3 3" stroke="${isDark ? '#374151' : '#e5e7eb'}" />
+          <XAxis dataKey="date" tick={{ fill: '${isDark ? '#9ca3af' : '#6b7280'}', fontSize: 11 }} />
+          <YAxis tickFormatter={(v: number) => fmt(v)} tick={{ fill: '${isDark ? '#9ca3af' : '#6b7280'}', fontSize: 12 }} />
+          <Tooltip contentStyle={{ background: '${isDark ? '#1f2937' : '#ffffff'}', border: '1px solid ${isDark ? '#374151' : '#e5e7eb'}', borderRadius: 8, color: '${isDark ? '#f3f4f6' : '#111827'}' }} formatter={(v: number) => [fmt(v), 'Cumulative']} />
+          <Area type="monotone" dataKey="cumulative" stroke="${isDark ? '#818cf8' : '#6366f1'}" fill="url(#trendGrad)" strokeWidth={2} />
+        </AreaChart>
+      </ResponsiveContainer>
     </div>
   );
 
@@ -327,9 +355,10 @@ export default function App() {
             <>
               <KpiGrid />
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <BarChart />
+                <CategoryBarChart />
                 <StatusBreakdown />
               </div>
+              <TrendChart />
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <ActivityTimeline />
                 <TopPerformers />
@@ -340,9 +369,10 @@ export default function App() {
             <>
               <KpiGrid />
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div className="lg:col-span-2"><BarChart /></div>
+                <div className="lg:col-span-2"><CategoryBarChart /></div>
                 <StatusBreakdown />
               </div>
+              <TrendChart />
               <TopPerformers />
             </>
           )}

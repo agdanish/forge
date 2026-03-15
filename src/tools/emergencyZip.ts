@@ -312,7 +312,7 @@ export default function App() {
     <div className="flex h-screen bg-gray-950 text-white overflow-hidden">
       {/* Sidebar */}
       {sidebarOpen && (
-        <aside className="w-64 bg-gray-900 border-r border-gray-800 flex flex-col">
+        <aside className="hidden sm:flex w-64 bg-gray-900 border-r border-gray-800 flex-col">
           <div className="p-6 border-b border-gray-800">
             <h1 className="text-xl font-bold bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">${appName}</h1>
             <p className="text-xs text-gray-500 mt-1">${domain}</p>
@@ -346,10 +346,10 @@ export default function App() {
             <button onClick={() => setSidebarOpen(!sidebarOpen)} className="text-gray-400 hover:text-white transition-colors">
               <Menu className="w-5 h-5" />
             </button>
-            <div className="relative">
+            <div className="relative hidden sm:block">
               <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
               <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search items..."
-                className="pl-10 pr-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent w-72" />
+                className="pl-10 pr-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent w-48 lg:w-72" />
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -380,7 +380,7 @@ export default function App() {
           {activeView === 'dashboard' && (
             <>
               {/* KPI Cards */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+              <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-8">
                 {[
                   { label: 'Total Items', value: stats.total, icon: Menu, trend: '+12%', up: true, color: 'indigo' },
                   { label: 'Active', value: stats.active, icon: AlertCircle, trend: '+8%', up: true, color: 'blue' },
@@ -470,7 +470,7 @@ export default function App() {
           )}
 
           {activeView === 'board' && (
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
               {(['pending', 'active', 'completed', 'archived'] as const).map(status => (
                 <div key={status} className="bg-gray-900/50 rounded-xl p-4">
                   <div className="flex items-center justify-between mb-4">
@@ -500,7 +500,7 @@ export default function App() {
 
       {/* Detail Panel */}
       {selectedItem && (
-        <aside className="w-96 bg-gray-900 border-l border-gray-800 flex flex-col overflow-auto">
+        <aside className="fixed inset-y-0 right-0 z-40 w-full sm:w-96 bg-gray-900 border-l border-gray-800 flex flex-col overflow-auto">
           <div className="p-6 border-b border-gray-800 flex items-center justify-between">
             <h2 className="text-lg font-semibold">Details</h2>
             <button onClick={() => setSelectedItem(null)} className="text-gray-400 hover:text-white transition-colors"><X className="w-5 h-5" /></button>

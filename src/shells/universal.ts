@@ -28,6 +28,7 @@ import {
   ChevronDown, X, Edit3, Trash2, Eye, TrendingUp, TrendingDown,
   CheckCircle2, Clock, Archive, AlertCircle, Menu, ArrowUpDown
 } from 'lucide-react';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 // ── Types ──
 type Status = 'active' | 'pending' | 'completed' | 'archived';
@@ -123,19 +124,48 @@ export default function App() {
     else { setSortField(field); setSortAsc(true); }
   };
 
+  // ── Trend Data ──
+  const trendData = useMemo(() => {
+    return [...items].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()).reduce((acc: { date: string; value: number; total: number }[], r) => {
+      const prev = acc.length ? acc[acc.length - 1].total : 0;
+      acc.push({ date: r.date, value: r.value, total: prev + r.value });
+      return acc;
+    }, []);
+  }, [items]);
+
   // ── KPI Section ──
   const KpiSection = () => (
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-      {INITIAL_KPIS.map((kpi, i) => (
-        <div key={i} className="${t.card} ${t.cardBorder} border rounded-xl p-4 card-hover" style={{ animationDelay: \`\${i * 80}ms\` }}>
-          <p className="${t.textMuted} text-xs font-medium uppercase tracking-wide">{kpi.label}</p>
-          <p className="${t.text} text-2xl font-bold mt-1">{kpi.value}</p>
-          <div className={\`flex items-center gap-1 mt-2 text-sm \${kpi.trendUp ? '${t.success}' : '${t.danger}'}\`}>
-            {kpi.trendUp ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
-            <span>{kpi.trend}</span>
+    <div className="space-y-6 mb-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {INITIAL_KPIS.map((kpi, i) => (
+          <div key={i} className="${t.card} ${t.cardBorder} border rounded-xl p-4 card-hover" style={{ animationDelay: \`\${i * 80}ms\` }}>
+            <p className="${t.textMuted} text-xs font-medium uppercase tracking-wide">{kpi.label}</p>
+            <p className="${t.text} text-2xl font-bold mt-1">{kpi.value}</p>
+            <div className={\`flex items-center gap-1 mt-2 text-sm \${kpi.trendUp ? '${t.success}' : '${t.danger}'}\`}>
+              {kpi.trendUp ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
+              <span>{kpi.trend}</span>
+            </div>
           </div>
-        </div>
-      ))}
+        ))}
+      </div>
+      <div className="${t.card} ${t.cardBorder} border rounded-xl p-5">
+        <h3 className="${t.text} font-semibold mb-3">Value Trend</h3>
+        <ResponsiveContainer width="100%" height={200}>
+          <AreaChart data={trendData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
+            <defs>
+              <linearGradient id="kpiGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="${isDark ? '#818cf8' : '#6366f1'}" stopOpacity={0.3} />
+                <stop offset="95%" stopColor="${isDark ? '#818cf8' : '#6366f1'}" stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" stroke="${isDark ? '#374151' : '#e5e7eb'}" />
+            <XAxis dataKey="date" tick={{ fill: '${isDark ? '#9ca3af' : '#6b7280'}', fontSize: 11 }} />
+            <YAxis tickFormatter={(v: number) => fmt(v)} tick={{ fill: '${isDark ? '#9ca3af' : '#6b7280'}', fontSize: 12 }} />
+            <Tooltip contentStyle={{ background: '${isDark ? '#1f2937' : '#ffffff'}', border: '1px solid ${isDark ? '#374151' : '#e5e7eb'}', borderRadius: 8, color: '${isDark ? '#f3f4f6' : '#111827'}' }} formatter={(v: number) => [fmt(v), 'Total']} />
+            <Area type="monotone" dataKey="total" stroke="${isDark ? '#818cf8' : '#6366f1'}" fill="url(#kpiGrad)" strokeWidth={2} />
+          </AreaChart>
+        </ResponsiveContainer>
+      </div>
     </div>
   );
 
