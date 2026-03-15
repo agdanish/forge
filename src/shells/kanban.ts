@@ -37,6 +37,13 @@ import {
   GripVertical, Menu, Check, Trash2, Download, Bell, Keyboard
 } from 'lucide-react';
 
+// ── Search Highlight ──
+function Hl({ text, q }: { text: string; q: string }) {
+  if (!q.trim()) return <>{text}</>;
+  const re = new RegExp('(' + q.replace(/[.*+?^\${}()|[\\]\\\\]/g, '\\\\$&') + ')', 'gi');
+  return <>{text.split(re).map((part, i) => re.test(part) ? <mark key={i} className="bg-yellow-400/30 text-inherit rounded px-0.5">{part}</mark> : part)}</>;
+}
+
 // ── Animated Counter Hook ──
 function useCountUp(end: number, duration = 1200) {
   const [value, setValue] = useState(0);
@@ -289,7 +296,7 @@ export default function App() {
                       className="${t.card} border ${t.cardBorder} rounded-xl p-3 cursor-pointer card-hover group"
                       onClick={() => setSelectedItem(item)}>
                       <div className="flex items-start justify-between mb-2">
-                        <span className="font-medium text-sm leading-tight flex-1">{item.name}</span>
+                        <span className="font-medium text-sm leading-tight flex-1"><Hl text={item.name} q={search} /></span>
                         <div className="relative">
                           <button onClick={e => { e.stopPropagation(); setMenuOpen(menuOpen === item.id ? null : item.id); }}
                             className="${t.textMuted} hover:${t.text} opacity-0 group-hover:opacity-100 transition-opacity p-0.5">
@@ -318,7 +325,7 @@ export default function App() {
                           )}
                         </div>
                       </div>
-                      <p className="${t.textMuted} text-xs line-clamp-2 mb-2">{item.description}</p>
+                      <p className="${t.textMuted} text-xs line-clamp-2 mb-2"><Hl text={item.description} q={search} /></p>
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <span className={\`text-[10px] px-1.5 py-0.5 rounded-full font-medium \${(PRIORITY_COLORS as any)[item.priority] || ''}\`}>
                           {item.priority}
@@ -368,8 +375,8 @@ export default function App() {
                 {filtered.map((item, i) => (
                   <tr key={i} className="border-b ${t.cardBorder} hover:${t.bg} cursor-pointer transition-colors" onClick={() => setSelectedItem(item)}>
                     <td className="px-4 py-3">
-                      <div className="font-medium">{item.name}</div>
-                      <div className="${t.textMuted} text-xs">{item.description}</div>
+                      <div className="font-medium"><Hl text={item.name} q={search} /></div>
+                      <div className="${t.textMuted} text-xs"><Hl text={item.description} q={search} /></div>
                     </td>
                     <td className="px-4 py-3 hidden sm:table-cell">
                       <span className="text-xs px-2 py-1 rounded-full ${isDark ? 'bg-gray-800 text-gray-300' : 'bg-gray-100 text-gray-700'}">{item.stage}</span>

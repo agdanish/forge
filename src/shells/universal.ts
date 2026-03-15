@@ -70,6 +70,13 @@ const PRIORITY_COLORS: Record<Priority, string> = { ${priorityColors} };
 // ── Helpers ──
 const fmt = (n: number) => n >= 1000000 ? '$' + (n / 1000000).toFixed(1) + 'M' : n >= 1000 ? '$' + (n / 1000).toFixed(0) + 'k' : '$' + n;
 
+// ── Search Highlight ──
+function Hl({ text, q }: { text: string; q: string }) {
+  if (!q.trim()) return <>{text}</>;
+  const re = new RegExp('(' + q.replace(/[.*+?^\${}()|[\\]\\\\]/g, '\\\\$&') + ')', 'gi');
+  return <>{text.split(re).map((part, i) => re.test(part) ? <mark key={i} className="bg-yellow-400/30 text-inherit rounded px-0.5">{part}</mark> : part)}</>;
+}
+
 // ── Animated Counter Hook ──
 function useCountUp(target: number, duration = 1200) {
   const [val, setVal] = useState(0);
@@ -271,8 +278,8 @@ export default function App() {
             <div className="space-y-2">
               {filtered.filter(i => i.status === status).map(item => (
                 <div key={item.id} onClick={() => setSelected(item)} className="${isDark ? 'bg-gray-800/50 hover:bg-gray-800 border-gray-700/50' : 'bg-gray-50 hover:bg-gray-100 border-gray-200'} border rounded-lg p-3 cursor-pointer card-hover">
-                  <p className="${t.text} text-sm font-medium">{item.name}</p>
-                  <p className="${t.textMuted} text-xs mt-1 line-clamp-2">{item.description}</p>
+                  <p className="${t.text} text-sm font-medium"><Hl text={item.name} q={search} /></p>
+                  <p className="${t.textMuted} text-xs mt-1 line-clamp-2"><Hl text={item.description} q={search} /></p>
                   <div className="flex items-center justify-between mt-2">
                     <span className={\`text-xs px-1.5 py-0.5 rounded \${PRIORITY_COLORS[item.priority]}\`}>{item.priority}</span>
                     <span className="${t.textSubtle} text-xs">{item.assignee.split(' ')[0]}</span>
@@ -308,7 +315,7 @@ export default function App() {
           <tbody className="divide-y ${isDark ? 'divide-gray-800' : 'divide-gray-200'}">
             {filtered.map(item => (
               <tr key={item.id} onClick={() => setSelected(item)} className="${isDark ? 'hover:bg-gray-800/50' : 'hover:bg-gray-50'} cursor-pointer transition-colors">
-                <td className="px-4 py-3"><span className="${t.text} text-sm font-medium">{item.name}</span></td>
+                <td className="px-4 py-3"><span className="${t.text} text-sm font-medium"><Hl text={item.name} q={search} /></span></td>
                 <td className="px-4 py-3"><button onClick={(e) => { e.stopPropagation(); cycleStatus(item.id); }} className={\`text-xs px-2 py-0.5 rounded-full cursor-pointer hover:opacity-80 transition-opacity \${STATUS_COLORS[item.status]}\`} title="Click to cycle status">{item.status}</button></td>
                 <td className="px-4 py-3"><span className={\`text-xs px-2 py-0.5 rounded \${PRIORITY_COLORS[item.priority]}\`}>{item.priority}</span></td>
                 <td className="px-4 py-3 ${t.textMuted} text-sm">{item.category}</td>

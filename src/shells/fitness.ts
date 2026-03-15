@@ -122,8 +122,43 @@ const ARCHETYPES: Archetype[] = [
     id: 'real-estate',
     keywords: ['real estate', 'property', 'house', 'apartment', 'rent', 'mortgage', 'listing', 'realty', 'flat'],
     patterns: [/\breal\s+estate\b/i, /\bproperty\s+(?:listing|manager|search)\b/i],
-    shellCapable: true,  // Simple property listing = shell; map/comparison = LLM (handled by custom UI patterns)
-    confidence: 60,  // Lower confidence — easily overridden by map/comparison signals
+    shellCapable: true,
+    confidence: 60,
+  },
+  {
+    id: 'inventory',
+    keywords: ['inventory', 'stock', 'warehouse', 'supply', 'catalog', 'sku', 'barcode', 'shelf', 'reorder', 'procurement'],
+    patterns: [/\binventory\s+(?:manager|tracker|system|tool)\b/i, /\bstock\s+(?:manager|tracker|level)\b/i, /\bwarehouse\b/i],
+    shellCapable: true,
+    confidence: 80,
+  },
+  {
+    id: 'hr-people',
+    keywords: ['hr', 'employee', 'people', 'team', 'hiring', 'recruit', 'talent', 'onboard', 'payroll', 'leave', 'attendance', 'performance', 'review'],
+    patterns: [/\b(?:hr|human\s+resource)\s+(?:dashboard|portal|tool)\b/i, /\bemployee\s+(?:manager|directory|tracker)\b/i, /\bperformance\s+review\b/i],
+    shellCapable: true,
+    confidence: 80,
+  },
+  {
+    id: 'event-management',
+    keywords: ['event', 'conference', 'meetup', 'rsvp', 'registration', 'attendee', 'speaker', 'venue', 'ticket', 'agenda'],
+    patterns: [/\bevent\s+(?:manager|planner|tracker|dashboard)\b/i, /\bconference\b/i, /\brsvp\b/i],
+    shellCapable: true,
+    confidence: 75,
+  },
+  {
+    id: 'support-helpdesk',
+    keywords: ['support', 'helpdesk', 'ticket', 'help desk', 'customer service', 'issue', 'bug', 'complaint', 'request', 'sla', 'escalation'],
+    patterns: [/\b(?:support|help\s*desk)\s+(?:dashboard|portal|tool|system)\b/i, /\bticket(?:ing)?\s+system\b/i, /\bbug\s+tracker\b/i],
+    shellCapable: true,
+    confidence: 80,
+  },
+  {
+    id: 'content-cms',
+    keywords: ['content', 'cms', 'blog', 'article', 'publish', 'editorial', 'author', 'draft', 'post', 'media library'],
+    patterns: [/\bcontent\s+(?:manager|management|dashboard)\b/i, /\bcms\b/i, /\bblog\s+(?:manager|dashboard|admin)\b/i],
+    shellCapable: true,
+    confidence: 70,
   },
 
   // ── LLM-REQUIRED ARCHETYPES ──
@@ -170,13 +205,13 @@ const ARCHETYPES: Archetype[] = [
 // ══════════════════════════════════════════════════════════════════════════════
 
 // Verb patterns that indicate management/tracking → shell-friendly
-const MANAGEMENT_VERBS = /\b(?:manage|track|organize|plan|schedule|monitor|log|record|administer|oversee|coordinate|assign|prioritize|categorize|filter|sort|group|archive)\b/i;
+const MANAGEMENT_VERBS = /\b(?:manage|track|organize|plan|schedule|monitor|log|record|administer|oversee|coordinate|assign|prioritize|categorize|filter|sort|group|archive|review|approve|audit|inventory|budget|allocate|delegate|escalate|triage|onboard|assess|evaluate|benchmark|forecast|report)\b/i;
 
 // Verb patterns that indicate interactive/dynamic UI → LLM-needed
 const INTERACTIVE_VERBS = /\b(?:play|stream|draw|paint|drag|drop|animate|scroll|swipe|type|compose|edit|render|compile|upload|download|connect|sync|subscribe)\b/i;
 
 // Entity patterns indicating data management → shell-friendly
-const DATA_ENTITY_PATTERN = /\b(?:tasks?|projects?|tickets?|issues?|patients?|students?|employees?|contacts?|orders?|invoices?|records?|items?|products?|members?|clients?|leads?|cases?|assets?|events?|bookings?|appointments?|expenses?|donations?|volunteers?|shipments?|courses?|properties?|campaigns?|applications?|submissions?)\b/i;
+const DATA_ENTITY_PATTERN = /\b(?:tasks?|projects?|tickets?|issues?|patients?|students?|employees?|contacts?|orders?|invoices?|records?|items?|products?|members?|clients?|leads?|cases?|assets?|events?|bookings?|appointments?|expenses?|donations?|volunteers?|shipments?|courses?|properties?|campaigns?|applications?|submissions?|contracts?|deals?|goals?|milestones?|sprints?|bugs?|features?|requests?|resources?|teams?|departments?|vendors?|suppliers?|policies?|documents?|workflows?|pipelines?|reviews?|feedback|meetings?|agendas?|objectives?|kpis?|metrics?|reports?|alerts?|incidents?|inventorys?|stocks?)\b/i;
 
 // UI-specific patterns indicating non-shell needs
 const CUSTOM_UI_PATTERNS = [
@@ -453,7 +488,7 @@ export function checkShellFitness(prompt: string): FitnessResult {
   }
 
   // "build/create/make" + shell-specific noun
-  if (/\b(?:build|create|make)\s+(?:a\s+)?(?:\w+\s+){0,3}(?:dashboard|tracker|manager|planner|organizer|directory|registry|portal|scheduler)\b/i.test(prompt)) {
+  if (/\b(?:build|create|make|design)\s+(?:a\s+)?(?:\w+\s+){0,3}(?:dashboard|tracker|manager|planner|organizer|directory|registry|portal|scheduler|admin|panel|hub|console|workspace|monitor|overview|control\s+center|headquarters|cockpit)\b/i.test(prompt)) {
     score += 10;
     matchedShellKeywords++;
     reasons.push('explicit shell-noun pattern');

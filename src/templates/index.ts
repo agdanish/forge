@@ -206,6 +206,50 @@ STRUCTURE (10 files):
 MUST HAVE: 10+ seed properties with real addresses/prices, filters update grid live, favorites toggle persists in state.
 DESIGN: Clean and professional — trust-inspiring white cards, emerald accents for "For Sale", blue for "For Rent".`,
   },
+  {
+    name: "inventory-manager",
+    keywords: ["inventory", "stock", "warehouse", "supply", "sku", "barcode", "shelf", "reorder", "procurement", "asset"],
+    hint: `ARCHETYPE: Inventory/Asset Manager — stock levels + categories + reorder alerts.
+STRUCTURE: Dashboard with 4 KPI cards (Total Items, Low Stock Alerts, Categories, Total Value) + stock level bar chart.
+List view: sortable table with Name, SKU, Category, Quantity, Reorder Point, Location, Status columns.
+Board view: group by category or warehouse location.
+CRUD: Add Item modal with fields for name, SKU, category, quantity, unit cost, reorder point, location, supplier.
+Inline quantity adjust (+/- buttons), low stock highlighting (red when below reorder point).
+SEED: 12+ realistic inventory items (electronics, office supplies, raw materials).`,
+  },
+  {
+    name: "hr-people",
+    keywords: ["hr", "employee", "people", "team", "hiring", "recruit", "talent", "payroll", "leave", "attendance", "performance"],
+    hint: `ARCHETYPE: HR/People Manager — employee directory + department view + performance tracking.
+STRUCTURE: Dashboard with 4 KPIs (Total Employees, Active, On Leave, Avg Performance Score).
+Directory view: cards with avatar placeholder, name, title, department, status badge.
+Table view: sortable by name, department, start date, status.
+CRUD: Add Employee modal with name, email, department, title, start date, salary range, manager fields.
+Department filter tabs. Status cycling: Active → On Leave → Terminated.
+SEED: 12+ employees across 4+ departments with realistic names and titles.`,
+  },
+  {
+    name: "support-helpdesk",
+    keywords: ["support", "helpdesk", "ticket", "help desk", "customer service", "issue", "bug", "complaint", "sla", "escalation"],
+    hint: `ARCHETYPE: Support Ticket System — ticket queue + priority levels + SLA tracking.
+STRUCTURE: Dashboard with 4 KPIs (Open Tickets, Avg Response Time, Resolution Rate, SLA Compliance).
+Board view: columns by status (New, In Progress, Waiting, Resolved, Closed).
+Table view: sortable with Ticket #, Subject, Priority, Category, Assignee, Created, SLA Status.
+CRUD: Create Ticket modal with subject, description, priority (Critical/High/Medium/Low), category, assignee.
+Priority color coding (red/amber/blue/gray). SLA timer badge.
+SEED: 12+ support tickets with realistic IT/product issues.`,
+  },
+  {
+    name: "content-cms",
+    keywords: ["content", "cms", "blog", "article", "publish", "editorial", "author", "draft", "media"],
+    hint: `ARCHETYPE: Content Management — article list + status workflow + publishing pipeline.
+STRUCTURE: Dashboard with 4 KPIs (Total Articles, Published, Drafts, Scheduled).
+Board view: columns by status (Draft, Review, Scheduled, Published, Archived).
+Table view: Title, Author, Category, Status, Published Date, Views columns.
+CRUD: Create Article modal with title, excerpt, body (textarea), category, author, status, publish date.
+Status workflow: Draft → Review → Scheduled → Published.
+SEED: 12+ articles across tech/business/lifestyle categories with realistic titles.`,
+  },
 ];
 
 const DEFAULT_HINT = `ARCHETYPE: Unknown/Custom — build the most complete, functional interpretation possible.

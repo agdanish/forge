@@ -1,5 +1,6 @@
 import { createReadStream } from "fs";
 import { stat, readFile } from "fs/promises";
+import { join } from "path";
 import { logger } from "../utils/logger.js";
 
 export interface ValidationResult {
@@ -28,7 +29,7 @@ const REQUIRED_SCRIPTS = ["dev"];
  * Validate a generated ZIP file before submission.
  * Returns a result with errors (blocking) and warnings (non-blocking).
  */
-export async function validateZip(zipPath: string, projectFiles: string[]): Promise<ValidationResult> {
+export async function validateZip(zipPath: string, projectFiles: string[], projectDir?: string): Promise<ValidationResult> {
   const result: ValidationResult = { valid: true, warnings: [], errors: [] };
 
   // Check file exists and is non-empty
@@ -85,18 +86,51 @@ export async function validateZip(zipPath: string, projectFiles: string[]): Prom
     }
   }
 
-  // Content validation: check package.json is valid JSON with dev script
-  if (hasPackageJson) {
+  // Content validation: check key files are valid
+  const hasAppTsx = Array.from(fileSet).some(f => f.endsWith('App.tsx'));
+  if (!hasAppTsx) {
+    result.warnings.push("No App.tsx found — expected for React project");
+  }
+
+  if (projectDir && hasPackageJson) {
     try {
-      // zipPath is the zip, but projectFiles come from the build dir — try to find package.json in the ZIP's source dir
-      // We can only do content checks if we have access to the project dir (passed via projectFiles paths)
-      // For now, just validate the file list includes expected React files
-      const hasAppTsx = Array.from(fileSet).some(f => f.endsWith('App.tsx'));
-      if (!hasAppTsx) {
-        result.warnings.push("No App.tsx found — expected for React project");
+      const pkgContent = await readFile(join(projectDir, 'package.json'), 'utf-8');
+      const pkg = JSON.parse(pkgContent);
+      if (!pkg.scripts?.dev) {
+        result.errors.push("package.json missing 'dev' script — app won't start");
+        result.valid = false;
+      }
+      if (!pkg.dependencies?.react) {
+        result.warnings.push("package.json missing react dependency");
+      }
+    } catch (e) {
+      result.errors.push("package.json is invalid JSON — build will fail");
+      result.valid = false;
+    }
+  }
+
+  if (projectDir && hasAppTsx) {
+    try {
+      const appPath = Array.from(fileSet).find(f => f.endsWith('App.tsx'));
+      if (appPath) {
+        const appContent = await readFile(join(projectDir, appPath), 'utf-8');
+        if (!/export\s+default\s+function|export\s+default\s+/i.test(appContent)) {
+          result.warnings.push("App.tsx may be missing default export");
+        }
+        // Check for placeholder text
+        for (const pat of PLACEHOLDER_PATTERNS) {
+          if (pat.test(appContent)) {
+            result.warnings.push(`App.tsx contains placeholder text: ${pat.source}`);
+            break;
+          }
+        }
+        // Check for empty onClick handlers
+        if (/onClick=\{?\(\)\s*=>\s*\{\s*\}\}?/i.test(appContent)) {
+          result.warnings.push("App.tsx has empty onClick handlers — dead buttons");
+        }
       }
     } catch {
-      // Non-blocking
+      // Non-blocking — file read failed
     }
   }
 

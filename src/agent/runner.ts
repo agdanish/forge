@@ -413,6 +413,10 @@ useEffect(() => { document.documentElement.classList.toggle('dark', dark); local
 // Button: <button onClick={() => setDark(!dark)}>{dark ? <Sun /> : <Moon />}</button>
 \`\`\`
 
+### Search text highlighting (proves real-time search works):
+Add a Hl component that wraps matched text in <mark> tags with bg-yellow-400/30. Use it for all names and descriptions in list/table/board views:
+<Hl text={item.name} q={search} /> — highlights matching substring in yellow when user types in search box.
+
 ### NEVER do these (instant score penalty):
 - ❌ Alert() popups for anything
 - ❌ console.log() for user-visible actions
@@ -988,7 +992,7 @@ export class AgentRunner extends EventEmitter implements TypedEventEmitter {
         }
 
         // Validate the shell-compiled ZIP
-        const validation = await validateZip(zipPath, projectFiles);
+        const validation = await validateZip(zipPath, projectFiles, projectDir);
         if (!validation.valid) {
           logger.warn(`Shell ZIP validation failed: ${validation.errors.join('; ')}. Trying deterministic fallback spec before LLM.`);
           // Clean up the failed shell output before trying fallback
@@ -1006,7 +1010,7 @@ export class AgentRunner extends EventEmitter implements TypedEventEmitter {
               logger.info(`Deterministic fallback: ${fallbackSpec.appName} (${fallbackSpec.shell} shell)`);
 
               const { zipPath: zipPath2, projectDir: tmpDir2, fileNames: fbFileNames } = await this.filesToZip(fallbackResult.files, 'fallback');
-              const val2 = await validateZip(zipPath2, fbFileNames);
+              const val2 = await validateZip(zipPath2, fbFileNames, tmpDir2);
               if (val2.valid) {
                 zipPath = zipPath2;
                 projectDir = tmpDir2;
@@ -1034,7 +1038,7 @@ export class AgentRunner extends EventEmitter implements TypedEventEmitter {
           const fallbackResult = renderFromSpec(fallbackSpec);
 
           const { zipPath: zipPath2, projectDir: tmpDir2, fileNames: fbFileNames } = await this.filesToZip(fallbackResult.files, 'fallback');
-          const val2 = await validateZip(zipPath2, fbFileNames);
+          const val2 = await validateZip(zipPath2, fbFileNames, tmpDir2);
           if (val2.valid) {
             zipPath = zipPath2;
             projectDir = tmpDir2;
@@ -1140,7 +1144,7 @@ export class AgentRunner extends EventEmitter implements TypedEventEmitter {
           timings.validateEnd = Date.now() - t0;
 
           // Standard ZIP validation
-          const validation = await validateZip(zipPath, projectFiles);
+          const validation = await validateZip(zipPath, projectFiles, projectDir);
           if (!validation.valid) {
             logger.warn(`ZIP validation failed: ${validation.errors.join("; ")}. Using emergency ZIP fallback.`);
             const emergency = await generateEmergencyZip(job.prompt);

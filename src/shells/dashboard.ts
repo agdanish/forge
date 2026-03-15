@@ -62,6 +62,13 @@ const INITIAL_DATA: DataRecord[] = (${seedJSON} as Omit<DataRecord, 'id'>[]).map
 const STATUS_COLORS: { [key in Status]: string } = { ${statusColors} };
 const fmt = (n: number) => n >= 1_000_000 ? '$' + (n / 1_000_000).toFixed(1) + 'M' : n >= 1000 ? '$' + (n / 1000).toFixed(0) + 'k' : '$' + n;
 
+// ── Search Highlight ──
+function Hl({ text, q }: { text: string; q: string }) {
+  if (!q.trim()) return <>{text}</>;
+  const re = new RegExp('(' + q.replace(/[.*+?^\${}()|[\\]\\\\]/g, '\\\\$&') + ')', 'gi');
+  return <>{text.split(re).map((part, i) => re.test(part) ? <mark key={i} className="bg-yellow-400/30 text-inherit rounded px-0.5">{part}</mark> : part)}</>;
+}
+
 // ── Animated Counter Hook ──
 function useCountUp(end: number, duration = 1200) {
   const [value, setValue] = useState(0);
@@ -384,7 +391,7 @@ export default function App() {
             <tbody className="divide-y ${isDark ? 'divide-gray-800' : 'divide-gray-200'}">
               {filtered.map(r => (
                 <tr key={r.id} className="${isDark ? 'hover:bg-gray-800/50' : 'hover:bg-gray-50'} transition-colors cursor-pointer">
-                  <td className="px-4 py-3" onClick={() => setSelectedRecord(r)}><div><span className="${t.text} text-sm font-medium">{r.name}</span><p className="${t.textSubtle} text-xs mt-0.5">{r.description}</p></div></td>
+                  <td className="px-4 py-3" onClick={() => setSelectedRecord(r)}><div><span className="${t.text} text-sm font-medium"><Hl text={r.name} q={search} /></span><p className="${t.textSubtle} text-xs mt-0.5"><Hl text={r.description} q={search} /></p></div></td>
                   <td className="px-4 py-3"><button onClick={(e) => { e.stopPropagation(); cycleStatus(r.id); }} className={\`text-xs px-2 py-0.5 rounded-full cursor-pointer hover:ring-2 hover:ring-indigo-500/40 transition-all \${STATUS_COLORS[r.status]}\`} title="Click to change status">{r.status}</button></td>
                   <td className="px-4 py-3 ${t.textMuted} text-sm">{r.category}</td>
                   <td className="px-4 py-3 ${t.text} text-sm font-mono">{fmt(r.value)}</td>
