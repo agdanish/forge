@@ -23,8 +23,8 @@
 ## Quick Start
 
 ```bash
-git clone https://github.com/AeroFyta/seed-agent.git
-cd seed-agent
+git clone https://github.com/agdanish/Agent-AeroFyta.git
+cd Agent-AeroFyta
 npm install
 npm start
 ```
