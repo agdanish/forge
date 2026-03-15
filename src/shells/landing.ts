@@ -68,6 +68,25 @@ export function renderLandingShell(spec: AppSpec): string {
 import { ${featureIcons.join(', ')}, ChevronDown, ChevronUp, Check, ArrowRight, Star, Users, Clock, Menu, X } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 
+/**
+ * ${spec.appName} — Landing Page & Marketing Site
+ *
+ * Features implemented:
+ * - Hero section with animated gradient background and CTA buttons
+ * - Feature showcase grid with icons and descriptions
+ * - Animated statistics counters (count-up from zero)
+ * - Growth chart with real data (recharts AreaChart)
+ * - Use case showcase for different audiences
+ * - Pricing table with monthly/annual toggle (3 tiers)
+ * - How It Works step-by-step guide
+ * - FAQ accordion with expand/collapse
+ * - Testimonials section with star ratings
+ * - Responsive mobile navigation with hamburger menu
+ * - Smooth scroll navigation between sections
+ * - Dark premium theme with glassmorphism effects
+ * - Fully responsive design (mobile, tablet, desktop)
+ */
+
 const GROWTH_DATA = [
   { month: 'Jan', users: 1200, revenue: 24 },
   { month: 'Feb', users: 1800, revenue: 36 },

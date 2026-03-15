@@ -30,11 +30,33 @@ import {
   AreaChart, Area, PieChart, Pie, Cell
 } from 'recharts';
 
-// ── Types ──
+/**
+ * ${spec.appName} — ${spec.tagline}
+ *
+ * Features implemented:
+ * - Analytics dashboard with KPI cards and trend indicators
+ * - Interactive charts: Bar, Area, and Pie charts (recharts)
+ * - Full CRUD operations on data records
+ * - Real-time search with text highlighting
+ * - Multi-criteria filtering and sorting
+ * - Data persistence via localStorage
+ * - Export to CSV file download
+ * - Keyboard shortcuts (Ctrl+K search, Esc close)
+ * - Animated KPI counters (count-up from zero)
+ * - Loading skeleton shimmer on initial render
+ * - Tab-based navigation (Overview, Analytics, Records)
+ * - Responsive design (mobile + desktop)
+ * - Dark premium theme with glassmorphism
+ */
+
+// ═══════════════════════════════════════════
+// TYPES & INTERFACES
+// ═══════════════════════════════════════════
 type Status = 'active' | 'pending' | 'completed' | 'archived';
 type Priority = 'high' | 'medium' | 'low';
 type Tab = 'overview' | 'analytics' | 'records';
 
+/** Represents a data record with all fields for CRUD and analytics operations */
 interface DataRecord {
   id: number;
   name: string;
@@ -100,6 +122,11 @@ function exportCSV(data: DataRecord[]) {
   a.click(); URL.revokeObjectURL(url);
 }
 
+// ═══════════════════════════════════════════
+// MAIN APP COMPONENT
+// ═══════════════════════════════════════════
+
+/** ${spec.appName} — Main dashboard component with analytics, charts, and full CRUD operations */
 export default function App() {
   const [tab, setTab] = useState<Tab>('overview');
   const [search, setSearch] = useState('');

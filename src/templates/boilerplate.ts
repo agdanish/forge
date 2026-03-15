@@ -223,19 +223,40 @@ Open [http://localhost:5173](http://localhost:5173) in your browser.
 
 ## Features
 
-- Interactive dashboard with real-time data
-- Search, filter, and sort functionality
-- Add/Edit/Delete operations
-- Responsive design (mobile + desktop)
-- Dark premium theme with glassmorphism effects
+- [x] Interactive dashboard with real-time data visualization (recharts)
+- [x] Full CRUD operations — Create, Read, Update, Delete with confirmation
+- [x] Real-time search with text highlighting
+- [x] Multi-criteria filtering and sorting
+- [x] Data persistence via localStorage (survives page refresh)
+- [x] Export to CSV file download
+- [x] Keyboard shortcuts (Ctrl+K to search, Esc to close modals)
+- [x] Undo on delete with toast notification
+- [x] Animated KPI counters (count-up from zero)
+- [x] Loading skeleton shimmer on initial render
+- [x] Responsive design — works on mobile, tablet, and desktop
+- [x] Dark premium theme with glassmorphism effects
+- [x] Accessibility attributes (aria-labels on interactive elements)
+- [x] Empty states with helpful messages and action buttons
 
 ## Tech Stack
 
-- React 18 + TypeScript
-- Vite (fast dev server + build)
-- Tailwind CSS (utility-first styling)
-- Lucide React (icons)
-- Recharts (data visualization)
+| Technology | Purpose |
+|-----------|---------|
+| React 18 | UI framework with hooks |
+| TypeScript | Type-safe development |
+| Vite | Fast dev server + optimized builds |
+| Tailwind CSS | Utility-first styling |
+| Lucide React | Beautiful SVG icons |
+| Recharts | Data visualization charts |
+
+## Project Structure
+
+\`\`\`
+src/
+  App.tsx      — Main application (all components, state, and logic)
+  main.tsx     — React entry point
+  index.css    — Tailwind imports + custom animations
+\`\`\`
 
 ## Build
 

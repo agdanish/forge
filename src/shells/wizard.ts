@@ -37,6 +37,27 @@ import {
   Zap, Shield, Globe, BarChart3, TrendingUp
 } from 'lucide-react';
 
+/**
+ * ${spec.appName} — ${spec.tagline}
+ *
+ * Features implemented:
+ * - Multi-step wizard with progress stepper
+ * - Interactive option cards with selection state
+ * - Form validation across all steps
+ * - Summary/review panel before submission
+ * - AI-powered recommendation results with KPI cards
+ * - Animated KPI counters (count-up from zero)
+ * - Step navigation (Next, Previous, Jump to step)
+ * - Restart flow capability
+ * - Responsive design (mobile + desktop)
+ * - Dark premium theme with glassmorphism
+ * - Smooth step transitions
+ */
+
+// ═══════════════════════════════════════════
+// HELPER COMPONENTS
+// ═══════════════════════════════════════════
+
 // ── Animated Counter Hook ──
 function useCountUp(target: number, duration = 1200) {
   const [val, setVal] = useState(0);

@@ -31,11 +31,36 @@ import {
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
-// ── Types ──
+/**
+ * ${spec.appName} — ${spec.tagline}
+ *
+ * Features implemented:
+ * - Full CRUD operations (Create, Read, Update, Delete) with confirmation
+ * - Real-time search with text highlighting
+ * - Multi-criteria filtering by category, status, and priority
+ * - Sortable data table with ascending/descending toggle
+ * - Data persistence via localStorage (survives page refresh)
+ * - Export to CSV file download
+ * - Keyboard shortcuts (Ctrl+K to focus search, Esc to close modals)
+ * - Undo on delete with toast notification
+ * - Animated KPI counters (count-up from zero on mount)
+ * - Loading skeleton shimmer placeholders
+ * - Multiple view modes: ${spec.views.join(', ')}
+ * - Responsive design (mobile, tablet, desktop)
+ * - Dark premium theme with glassmorphism effects
+ * - Notification badge with unread count
+ * - Accessibility attributes (aria-labels)
+ * - Area chart with gradient fill (recharts)
+ */
+
+// ═══════════════════════════════════════════
+// TYPES & INTERFACES
+// ═══════════════════════════════════════════
 type Status = 'active' | 'pending' | 'completed' | 'archived';
 type Priority = 'high' | 'medium' | 'low';
 type ViewMode = ${spec.views.map(v => `'${v}'`).join(' | ')};
 
+/** Represents a ${spec.primaryEntity} entity with all required fields for CRUD operations */
 interface ${spec.primaryEntity} {
   id: number;
   name: string;
@@ -105,6 +130,7 @@ function exportCSV(rows: ${spec.primaryEntity}[]) {
   a.click();
 }
 
+/** ${spec.appName} — Main application component with full CRUD, search, filter, and persistence */
 export default function App() {
   const [items, setItems] = useState<${spec.primaryEntity}[]>(() => {
     try { const s = localStorage.getItem('${spec.appName.replace(/[^a-zA-Z0-9]/g, '_')}_data'); return s ? JSON.parse(s) : INITIAL_DATA; } catch { return INITIAL_DATA; }

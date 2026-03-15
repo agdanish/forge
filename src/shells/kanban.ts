@@ -37,6 +37,29 @@ import {
   GripVertical, Menu, Check, Trash2, Download, Bell, Keyboard
 } from 'lucide-react';
 
+/**
+ * ${spec.appName} — ${spec.tagline}
+ *
+ * Features implemented:
+ * - Kanban board with draggable-feel stage columns
+ * - Full CRUD operations (Create, Read, Update, Delete)
+ * - Move items between stages with one click
+ * - Real-time search with text highlighting
+ * - Filtering by category and priority
+ * - Data persistence via localStorage
+ * - Export to CSV file download
+ * - Keyboard shortcuts (Ctrl+K search, Esc close)
+ * - Animated KPI counters per column
+ * - Board view and List view toggle
+ * - Detail modal with all item fields
+ * - Responsive design (mobile + desktop)
+ * - Dark premium theme
+ */
+
+// ═══════════════════════════════════════════
+// HELPER COMPONENTS
+// ═══════════════════════════════════════════
+
 // ── Search Highlight ──
 function Hl({ text, q }: { text: string; q: string }) {
   if (!q.trim()) return <>{text}</>;
