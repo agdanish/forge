@@ -89,7 +89,7 @@ export default function App() {
     setCart(prev => prev.map(c => {
       if (c.product.id !== productId) return c;
       const newQty = c.quantity + delta;
-      return newQty <= 0 ? c : { ...c, quantity: newQty };
+      return { ...c, quantity: Math.max(0, newQty) };
     }).filter(c => c.quantity > 0));
   };
 

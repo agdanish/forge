@@ -67,22 +67,25 @@ export default function App() {
   const [liked, setLiked] = useState<Set<number>>(new Set(TRACKS.filter(t => t.liked).map(t => t.id)));
   const intervalRef = useRef<number | null>(null);
 
+  const currentTrackId = currentTrack?.id ?? null;
+  const currentTrackDuration = currentTrack?.duration ?? 0;
+
   // Simulate playback progress
   useEffect(() => {
-    if (isPlaying && currentTrack) {
+    if (isPlaying && currentTrackId !== null) {
       intervalRef.current = window.setInterval(() => {
         setProgress(prev => prev + 1);
       }, 1000);
     }
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
-  }, [isPlaying, currentTrack]);
+  }, [isPlaying, currentTrackId]);
 
   // Auto-advance to next track when progress exceeds duration
   useEffect(() => {
-    if (currentTrack && progress >= currentTrack.duration) {
+    if (currentTrackId !== null && progress >= currentTrackDuration) {
       playNext();
     }
-  }, [progress, currentTrack]);
+  }, [progress, currentTrackId, currentTrackDuration]);
 
   const filtered = useMemo(() => {
     let result = tracks;

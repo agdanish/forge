@@ -11,7 +11,7 @@ export function renderEditorLiteKit(spec: AppSpec): string {
   const t = getThemeById(spec.theme);
   const isDark = spec.theme.includes('dark');
 
-  return `import { useState, useMemo } from 'react';
+  return `import { useState, useMemo, useRef } from 'react';
 import {
   Type, Square, Circle, Image, Minus, MousePointer2, Hand,
   ZoomIn, ZoomOut, Undo2, Redo2, Download, Layers, Palette,
@@ -63,9 +63,8 @@ const TEMPLATES = [
 
 const COLORS = ['#6366f1', '#ec4899', '#f59e0b', '#10b981', '#3b82f6', '#ef4444', '#8b5cf6', '#1e293b', '#f8fafc', '#ffffff', '#000000'];
 
-let nextId = 100;
-
 export default function App() {
+  const nextIdRef = useRef(100);
   const [objects, setObjects] = useState<CanvasObject[]>(
     TEMPLATES[1].objects.map((o, i) => ({ ...o, id: i + 1, visible: true, locked: false, fontSize: o.fontSize || 16 }))
   );
@@ -79,7 +78,7 @@ export default function App() {
 
   const addObject = (type: CanvasObject['type']) => {
     const obj: CanvasObject = {
-      id: nextId++,
+      id: nextIdRef.current++,
       type,
       x: 100 + Math.random() * 100,
       y: 100 + Math.random() * 100,
@@ -90,7 +89,7 @@ export default function App() {
       fontSize: type === 'text' ? 18 : undefined,
       visible: true,
       locked: false,
-      label: type.charAt(0).toUpperCase() + type.slice(1) + ' ' + nextId,
+      label: type.charAt(0).toUpperCase() + type.slice(1) + ' ' + nextIdRef.current,
     };
     setObjects(prev => [...prev, obj]);
     setSelectedId(obj.id);
@@ -109,15 +108,15 @@ export default function App() {
   const duplicateObject = (id: number) => {
     const obj = objects.find(o => o.id === id);
     if (!obj) return;
-    const copy = { ...obj, id: nextId++, x: obj.x + 20, y: obj.y + 20, label: obj.label + ' Copy' };
+    const copy = { ...obj, id: nextIdRef.current++, x: obj.x + 20, y: obj.y + 20, label: obj.label + ' Copy' };
     setObjects(prev => [...prev, copy]);
     setSelectedId(copy.id);
   };
 
   const loadTemplate = (idx: number) => {
     const tmpl = TEMPLATES[idx];
-    setObjects(tmpl.objects.map((o, i) => ({ ...o, id: nextId + i, visible: true, locked: false, fontSize: o.fontSize || 16 })));
-    nextId += tmpl.objects.length + 1;
+    setObjects(tmpl.objects.map((o, i) => ({ ...o, id: nextIdRef.current + i, visible: true, locked: false, fontSize: o.fontSize || 16 })));
+    nextIdRef.current += tmpl.objects.length + 1;
     setSelectedId(null);
   };
 

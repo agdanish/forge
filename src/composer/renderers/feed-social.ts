@@ -58,7 +58,7 @@ const INITIAL_POSTS: Post[] = ${JSON.stringify(spec.seedData.map((s, i) => ({
   time: `${Math.floor(Math.random() * 24)}h ago`,
   liked: false,
   saved: false,
-})))}.map((p: any) => ({
+})))}.map((p: Omit<Post, 'comments'>) => ({
   ...p,
   comments: [
     { id: 1, author: 'Alex Kim', text: 'Great post! Very insightful.', time: '2h ago', likes: 3 },

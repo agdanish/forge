@@ -52,7 +52,7 @@ interface Message {
 }
 
 // ── Data ──
-const INITIAL_CONVERSATIONS: Conversation[] = ${JSON.stringify(conversations)}.map((c: any, i: number) => ({
+const INITIAL_CONVERSATIONS: Conversation[] = ${JSON.stringify(conversations)}.map((c: Omit<Conversation, 'messages'>, i: number) => ({
   ...c,
   messages: [
     { id: 1, sender: c.name, text: c.preview, time: '10:00 AM', isAgent: false },
