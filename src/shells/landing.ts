@@ -66,6 +66,18 @@ export function renderLandingShell(spec: AppSpec): string {
 
   return `import React, { useState } from 'react';
 import { ${featureIcons.join(', ')}, ChevronDown, ChevronUp, Check, ArrowRight, Star, Users, Clock, Menu, X } from 'lucide-react';
+import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+
+const GROWTH_DATA = [
+  { month: 'Jan', users: 1200, revenue: 24 },
+  { month: 'Feb', users: 1800, revenue: 36 },
+  { month: 'Mar', users: 2900, revenue: 58 },
+  { month: 'Apr', users: 4100, revenue: 82 },
+  { month: 'May', users: 5800, revenue: 116 },
+  { month: 'Jun', users: 8200, revenue: 164 },
+  { month: 'Jul', users: 11500, revenue: 230 },
+  { month: 'Aug', users: 15000, revenue: 300 },
+];
 
 const FEATURES = ${JSON.stringify(features.map((f, i) => ({ name: f, icon: featureIcons[i], desc: featureDescs[i] })), null, 2)};
 
@@ -164,6 +176,41 @@ export default function App() {
               <div className="${t.textMuted} text-sm mt-1">{s.label}</div>
             </div>
           ))}
+        </div>
+      </section>
+
+      {/* Growth Chart */}
+      <section className="py-16 px-4 sm:px-6 lg:px-8 max-w-5xl mx-auto">
+        <div className="${t.card} border ${t.cardBorder} rounded-2xl p-8">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h3 className="text-xl font-semibold">Platform Growth</h3>
+              <p className="${t.textMuted} text-sm mt-1">Users and revenue over the past 8 months</p>
+            </div>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-indigo-500" /><span className="${t.textMuted} text-xs">Users</span></div>
+              <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-emerald-500" /><span className="${t.textMuted} text-xs">Revenue ($k)</span></div>
+            </div>
+          </div>
+          <ResponsiveContainer width="100%" height={260}>
+            <AreaChart data={GROWTH_DATA} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
+              <defs>
+                <linearGradient id="usersGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="${isDark ? '#818cf8' : '#6366f1'}" stopOpacity={0.3} />
+                  <stop offset="95%" stopColor="${isDark ? '#818cf8' : '#6366f1'}" stopOpacity={0} />
+                </linearGradient>
+                <linearGradient id="revenueGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="${isDark ? '#34d399' : '#10b981'}" stopOpacity={0.3} />
+                  <stop offset="95%" stopColor="${isDark ? '#34d399' : '#10b981'}" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <XAxis dataKey="month" tick={{ fill: '${isDark ? '#9ca3af' : '#6b7280'}', fontSize: 12 }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fill: '${isDark ? '#9ca3af' : '#6b7280'}', fontSize: 12 }} axisLine={false} tickLine={false} />
+              <Tooltip contentStyle={{ background: '${isDark ? '#1f2937' : '#ffffff'}', border: '1px solid ${isDark ? '#374151' : '#e5e7eb'}', borderRadius: 8, color: '${isDark ? '#f3f4f6' : '#111827'}' }} />
+              <Area type="monotone" dataKey="users" stroke="${isDark ? '#818cf8' : '#6366f1'}" fill="url(#usersGrad)" strokeWidth={2} />
+              <Area type="monotone" dataKey="revenue" stroke="${isDark ? '#34d399' : '#10b981'}" fill="url(#revenueGrad)" strokeWidth={2} />
+            </AreaChart>
+          </ResponsiveContainer>
         </div>
       </section>
 

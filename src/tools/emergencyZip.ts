@@ -346,10 +346,10 @@ export default function App() {
             <button onClick={() => setSidebarOpen(!sidebarOpen)} className="text-gray-400 hover:text-white transition-colors">
               <Menu className="w-5 h-5" />
             </button>
-            <div className="relative hidden sm:block">
+            <div className="relative">
               <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
               <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search items..."
-                className="pl-10 pr-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent w-48 lg:w-72" />
+                className="pl-10 pr-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent w-36 sm:w-48 lg:w-72" />
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -380,7 +380,7 @@ export default function App() {
           {activeView === 'dashboard' && (
             <>
               {/* KPI Cards */}
-              <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-8">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-8">
                 {[
                   { label: 'Total Items', value: stats.total, icon: Menu, trend: '+12%', up: true, color: 'indigo' },
                   { label: 'Active', value: stats.active, icon: AlertCircle, trend: '+8%', up: true, color: 'blue' },
@@ -470,7 +470,7 @@ export default function App() {
           )}
 
           {activeView === 'board' && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
               {(['pending', 'active', 'completed', 'archived'] as const).map(status => (
                 <div key={status} className="bg-gray-900/50 rounded-xl p-4">
                   <div className="flex items-center justify-between mb-4">
@@ -500,7 +500,7 @@ export default function App() {
 
       {/* Detail Panel */}
       {selectedItem && (
-        <aside className="fixed inset-y-0 right-0 z-40 w-full sm:w-96 bg-gray-900 border-l border-gray-800 flex flex-col overflow-auto">
+        <aside className="fixed inset-y-0 right-0 z-40 w-full max-w-full sm:w-96 sm:max-w-96 bg-gray-900 border-l border-gray-800 flex flex-col overflow-auto">
           <div className="p-6 border-b border-gray-800 flex items-center justify-between">
             <h2 className="text-lg font-semibold">Details</h2>
             <button onClick={() => setSelectedItem(null)} className="text-gray-400 hover:text-white transition-colors"><X className="w-5 h-5" /></button>
@@ -552,7 +552,7 @@ export default function App() {
       {/* Add/Edit Modal */}
       {showForm && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50" onClick={resetForm}>
-          <div className="bg-gray-900/95 border border-gray-700 rounded-2xl p-6 w-full max-w-md shadow-2xl glass animate-scale-in" onClick={e => e.stopPropagation()}>
+          <div className="bg-gray-900/95 border border-gray-700 rounded-2xl p-4 sm:p-6 w-full max-w-md mx-4 shadow-2xl glass animate-scale-in" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-lg font-semibold">{editingItem ? 'Edit Item' : 'Add New Item'}</h2>
               <button onClick={resetForm} className="text-gray-400 hover:text-white"><X className="w-5 h-5" /></button>
