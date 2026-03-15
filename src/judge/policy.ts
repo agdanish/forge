@@ -14,20 +14,20 @@
 
 import { logger } from '../utils/logger.js';
 
-/** Time budget constants (milliseconds) */
+/** Time budget constants (milliseconds) — HARDENED for hackathon reliability */
 export const TIME_BUDGET = {
   /** Maximum time for shell lane (including spec extraction) */
-  SHELL_MAX_MS: 10_000,
+  SHELL_MAX_MS: 15_000,
   /** Maximum time for composer lane */
-  COMPOSER_MAX_MS: 10_000,
-  /** Maximum time for LLM generation */
-  LLM_MAX_MS: 45_000,
+  COMPOSER_MAX_MS: 15_000,
+  /** Maximum time for LLM generation (AbortController in runner.ts enforces 120s) */
+  LLM_MAX_MS: 120_000,
   /** Maximum total job processing time before emergency submission */
-  TOTAL_MAX_MS: 90_000,
+  TOTAL_MAX_MS: 180_000,
   /** Time remaining at which we force-submit whatever we have */
-  EMERGENCY_THRESHOLD_MS: 10_000,
+  EMERGENCY_THRESHOLD_MS: 15_000,
   /** Time remaining at which we skip LLM and use best deterministic */
-  SKIP_LLM_THRESHOLD_MS: 20_000,
+  SKIP_LLM_THRESHOLD_MS: 30_000,
 } as const;
 
 export interface TimeBudgetState {

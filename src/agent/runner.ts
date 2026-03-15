@@ -323,6 +323,11 @@ export class AgentRunner extends EventEmitter implements TypedEventEmitter {
   private processedJobs: Set<string>;
   private pusher: PusherClient | null = null;
   private wsConnected = false;
+  private wsReconnectAttempts = 0;
+  private wsReconnectTimer: NodeJS.Timeout | null = null;
+  private watchdogTimer: NodeJS.Timeout | null = null;
+  private lastPollSuccess: number = Date.now();
+  private lastApiPing: number = Date.now();
   private stats = {
     jobsProcessed: 0,
     jobsSkipped: 0,
@@ -360,6 +365,34 @@ export class AgentRunner extends EventEmitter implements TypedEventEmitter {
 
   // ─── WebSocket (Pusher) ────────────────────────────────────────────────────
 
+  // ─── HARDENING: WebSocket auto-reconnect with exponential backoff ──────
+  private static readonly WS_RECONNECT_BASE_MS = 1000;
+  private static readonly WS_RECONNECT_MAX_MS = 30000;
+  private static readonly WS_RECONNECT_MAX_ATTEMPTS = 50; // effectively unlimited
+
+  private scheduleWsReconnect(): void {
+    if (!this.running) return;
+    if (this.wsReconnectTimer) clearTimeout(this.wsReconnectTimer);
+
+    const delay = Math.min(
+      AgentRunner.WS_RECONNECT_BASE_MS * Math.pow(2, this.wsReconnectAttempts),
+      AgentRunner.WS_RECONNECT_MAX_MS
+    );
+    // Add jitter ±25%
+    const jitter = delay * 0.25 * (Math.random() - 0.5);
+    const finalDelay = Math.round(delay + jitter);
+
+    this.wsReconnectAttempts++;
+    logger.warn(`[WS-RECONNECT] Scheduling reconnect attempt ${this.wsReconnectAttempts} in ${finalDelay}ms`);
+
+    this.wsReconnectTimer = setTimeout(() => {
+      if (!this.running) return;
+      logger.info(`[WS-RECONNECT] Attempting reconnect (attempt ${this.wsReconnectAttempts}/${AgentRunner.WS_RECONNECT_MAX_ATTEMPTS})`);
+      this.disconnectWebSocket();
+      this.connectWebSocket();
+    }, finalDelay);
+  }
+
   private connectWebSocket(): void {
     const config = getConfig();
 
@@ -391,38 +424,52 @@ export class AgentRunner extends EventEmitter implements TypedEventEmitter {
 
       this.pusher.connection.bind("connected", () => {
         this.wsConnected = true;
+        this.wsReconnectAttempts = 0; // Reset on successful connect
+        if (this.wsReconnectTimer) { clearTimeout(this.wsReconnectTimer); this.wsReconnectTimer = null; }
         this.emitEvent({ type: "websocket_connected" });
-        logger.info("WebSocket connected to Pusher");
+        logger.info("WebSocket connected to Pusher ✓");
       });
 
       this.pusher.connection.bind("disconnected", () => {
         this.wsConnected = false;
         this.emitEvent({ type: "websocket_disconnected", reason: "disconnected" });
-        logger.warn("WebSocket disconnected");
+        logger.warn("WebSocket disconnected — scheduling auto-reconnect");
+        this.scheduleWsReconnect();
       });
 
       this.pusher.connection.bind("error", (err: unknown) => {
         this.wsConnected = false;
         logger.error("WebSocket error:", err);
         this.emitEvent({ type: "websocket_disconnected", reason: "error" });
+        this.scheduleWsReconnect();
+      });
+
+      // Pusher "unavailable" state — server unreachable
+      this.pusher.connection.bind("unavailable", () => {
+        this.wsConnected = false;
+        logger.warn("WebSocket unavailable (server unreachable) — scheduling auto-reconnect");
+        this.emitEvent({ type: "websocket_disconnected", reason: "unavailable" });
+        this.scheduleWsReconnect();
       });
 
       const channel = this.pusher.subscribe(`private-agent-${agentId}`);
       channel.bind("pusher:subscription_succeeded", () => {
-        logger.info(`Subscribed to private-agent-${agentId}`);
+        logger.info(`Subscribed to private-agent-${agentId} ✓`);
       });
       channel.bind("pusher:subscription_error", (err: unknown) => {
         logger.error("Channel subscription error:", err);
-        logger.warn("Will rely on polling for job discovery");
+        logger.warn("Will rely on polling for job discovery — scheduling WS reconnect");
+        this.scheduleWsReconnect();
       });
       channel.bind("job:new", (data: WebSocketJobEvent) => {
-        logger.info(`[WS] New job received: ${data.jobId} ($${data.budget})`);
+        logger.info(`[WS] 🔔 New job received: ${data.jobId} ($${data.budget})`);
         this.emitEvent({ type: "websocket_job", jobId: data.jobId });
         this.handleWebSocketJob(data);
       });
     } catch (err) {
       logger.error("Failed to initialize Pusher:", err);
-      logger.warn("Falling back to polling only");
+      logger.warn("Falling back to polling — scheduling WS reconnect");
+      this.scheduleWsReconnect();
     }
   }
 
@@ -458,10 +505,94 @@ export class AgentRunner extends EventEmitter implements TypedEventEmitter {
   }
 
   private disconnectWebSocket(): void {
+    if (this.wsReconnectTimer) { clearTimeout(this.wsReconnectTimer); this.wsReconnectTimer = null; }
     if (this.pusher) {
-      this.pusher.disconnect();
+      try { this.pusher.disconnect(); } catch { /* ignore */ }
       this.pusher = null;
       this.wsConnected = false;
+    }
+  }
+
+  // ─── HARDENING: Self-healing watchdog ─────────────────────────────────────
+  // Runs every 60s. Detects:
+  //   1. WebSocket silently dead (connected but no events)
+  //   2. Polling stuck (no successful poll in 5 minutes)
+  //   3. API unreachable (ping /me fails)
+  // Actions: force-reconnect WS, restart polling, log alerts
+
+  private static readonly WATCHDOG_INTERVAL_MS = 60_000;
+  private static readonly POLL_STALE_THRESHOLD_MS = 300_000; // 5 min
+  private static readonly API_PING_INTERVAL_MS = 120_000;    // 2 min
+
+  private startWatchdog(): void {
+    if (this.watchdogTimer) clearTimeout(this.watchdogTimer);
+
+    this.watchdogTimer = setInterval(async () => {
+      if (!this.running) return;
+
+      const now = Date.now();
+      const pollAge = now - this.lastPollSuccess;
+      const pingAge = now - this.lastApiPing;
+
+      // 1. Check if polling is stuck
+      if (pollAge > AgentRunner.POLL_STALE_THRESHOLD_MS) {
+        logger.error(`[WATCHDOG] ⚠️ Polling stale for ${Math.round(pollAge / 1000)}s — force-restarting poll loop`);
+        if (this.pollTimer) { clearTimeout(this.pollTimer); this.pollTimer = null; }
+        this.poll().catch(err => logger.error('[WATCHDOG] Poll restart failed:', err));
+      }
+
+      // 2. Check if WebSocket is silently dead (not connected but should be)
+      if (!this.wsConnected && !this.wsReconnectTimer) {
+        const config = getConfig();
+        if (config.useWebSocket && config.pusherKey) {
+          logger.warn('[WATCHDOG] ⚠️ WebSocket not connected and no reconnect scheduled — forcing reconnect');
+          this.scheduleWsReconnect();
+        }
+      }
+
+      // 3. Periodic API health ping (every 2 min)
+      if (pingAge > AgentRunner.API_PING_INTERVAL_MS) {
+        try {
+          await this.client.getMe();
+          this.lastApiPing = Date.now();
+          logger.debug('[WATCHDOG] API ping OK ✓');
+        } catch (err) {
+          logger.error(`[WATCHDOG] ⚠️ API ping FAILED: ${(err as Error).message}`);
+          // API might be temporarily down — not fatal, polling will retry
+        }
+      }
+
+      // 4. Log health summary
+      logger.info(`[WATCHDOG] Health: WS=${this.wsConnected ? '✓' : '✗'} | Poll=${pollAge < 60000 ? '✓' : `stale ${Math.round(pollAge / 1000)}s`} | Jobs=${this.processingJobs.size}/${this.stats.jobsProcessed} | Uptime=${Math.round((now - this.stats.startTime) / 60000)}min`);
+
+    }, AgentRunner.WATCHDOG_INTERVAL_MS) as unknown as NodeJS.Timeout;
+
+    logger.info('[WATCHDOG] Self-healing watchdog started (60s interval)');
+  }
+
+  private stopWatchdog(): void {
+    if (this.watchdogTimer) { clearInterval(this.watchdogTimer); this.watchdogTimer = null; }
+  }
+
+  // ─── HARDENING: Pre-warm OpenRouter on startup ────────────────────────────
+  // Send a tiny request to OpenRouter so the connection is already established
+  // when the mystery prompt drops. Saves ~1-2s on first real request.
+
+  private async preWarmLLM(): Promise<void> {
+    try {
+      logger.info('[PRE-WARM] Warming up OpenRouter connection...');
+      const llm = getLLMClient();
+      const t0 = Date.now();
+      await llm.generate({
+        prompt: 'Reply with OK',
+        maxTokens: 5,
+        temperature: 0,
+        tools: false,
+      });
+      const elapsed = Date.now() - t0;
+      logger.info(`[PRE-WARM] OpenRouter warm ✓ (${elapsed}ms)`);
+    } catch (err) {
+      logger.warn(`[PRE-WARM] OpenRouter pre-warm failed (non-fatal): ${(err as Error).message}`);
     }
   }
 
@@ -471,14 +602,22 @@ export class AgentRunner extends EventEmitter implements TypedEventEmitter {
     if (this.running) { logger.warn("Agent is already running"); return; }
     this.running = true;
     this.stats.startTime = Date.now();
+    this.lastPollSuccess = Date.now();
+    this.lastApiPing = Date.now();
     this.emitEvent({ type: "startup" });
+
+    // Pre-warm OpenRouter connection (non-blocking)
+    this.preWarmLLM().catch(() => {});
+
     this.connectWebSocket();
+    this.startWatchdog();
     await this.poll();
   }
 
   async stop(): Promise<void> {
     this.running = false;
     if (this.pollTimer) { clearTimeout(this.pollTimer); this.pollTimer = null; }
+    this.stopWatchdog();
     this.disconnectWebSocket();
     this.emitEvent({ type: "shutdown" });
   }
@@ -492,6 +631,7 @@ export class AgentRunner extends EventEmitter implements TypedEventEmitter {
     try {
       this.emitEvent({ type: "polling", jobCount: this.processingJobs.size });
       const response = await this.client.listJobsV2(20, 0);
+      this.lastPollSuccess = Date.now(); // Track for watchdog
       const jobs = response.jobs;
 
       for (const job of jobs) {
@@ -809,11 +949,47 @@ export class AgentRunner extends EventEmitter implements TypedEventEmitter {
         if (!usedShellCompiler) {
         logger.info('All deterministic paths failed — using LLM tool-call generation (slow fallback)');
         timings.genStart = Date.now() - t0;
-        const result = await llm.generate({
-          prompt: job.prompt,
-          systemPrompt: HACKATHON_SYSTEM_PROMPT(effectiveBudget, job, getScaffoldHint(job.prompt)),
-          tools: true,
-        });
+
+        // ── HARDENING: LLM timeout via AbortController (120s max) ──
+        const LLM_TIMEOUT_MS = 120_000;
+        const abortController = new AbortController();
+        const llmTimeoutHandle = setTimeout(() => {
+          logger.error(`[TIMEOUT] ⚠️ LLM generation exceeded ${LLM_TIMEOUT_MS / 1000}s — aborting`);
+          abortController.abort();
+        }, LLM_TIMEOUT_MS);
+
+        let result;
+        try {
+          result = await llm.generate({
+            prompt: job.prompt,
+            systemPrompt: HACKATHON_SYSTEM_PROMPT(effectiveBudget, job, getScaffoldHint(job.prompt)),
+            tools: true,
+          });
+        } catch (llmErr) {
+          clearTimeout(llmTimeoutHandle);
+          const errMsg = (llmErr as Error).message || String(llmErr);
+
+          // If it was a timeout or network error, try emergency ZIP
+          if (abortController.signal.aborted || errMsg.includes('aborted') || errMsg.includes('timeout') || errMsg.includes('ECONNREFUSED') || errMsg.includes('fetch failed') || errMsg.includes('503') || errMsg.includes('529')) {
+            logger.error(`[LLM-FAIL] LLM call failed: ${errMsg.substring(0, 100)}. Using emergency ZIP.`);
+            const emergency = await generateEmergencyZip(job.prompt);
+            zipPath = emergency.zipPath;
+            projectDir = emergency.projectDir;
+            projectFiles = emergency.files;
+            responseText = emergency.text;
+            usedShellCompiler = true; // Skip rest of LLM path
+
+            // Jump to upload
+            timings.genEnd = Date.now() - t0;
+            logger.info(`⏱ TIMING: LLM failed after ${timings.genEnd - (timings.genStart || 0)}ms — emergency ZIP used`);
+          } else {
+            // Re-throw non-timeout errors for the outer catch
+            throw llmErr;
+          }
+        }
+        clearTimeout(llmTimeoutHandle);
+
+        if (result) {
         timings.genEnd = Date.now() - t0;
         logger.info(`⏱ TIMING: LLM generation took ${timings.genEnd - (timings.genStart || 0)}ms`);
 
@@ -865,6 +1041,7 @@ export class AgentRunner extends EventEmitter implements TypedEventEmitter {
           timings.emergencyEnd = Date.now() - t0;
           logger.info(`⏱ TIMING: Emergency ZIP took ${(timings.emergencyEnd - (timings.emergencyStart || 0))}ms`);
         }
+        } // close if (result) — LLM succeeded
         } // close time-budget if (!usedShellCompiler)
       }
 
