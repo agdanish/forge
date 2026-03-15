@@ -205,7 +205,7 @@ README.md is ALREADY pre-created. Do NOT create it.
 5. NEVER create hooks/ folder, utils/ folder, or any additional files.
 6. react, react-dom, lucide-react, and recharts are ALL pre-installed. Do NOT overwrite package.json.
 7. PERFECT SUBMISSION = create_file(src/App.tsx) + finalize_project = 2 tool calls ONLY.
-8. Be CONCISE but COMPLETE — write as many lines as the prompt demands. Simple prompts → 250-350 lines. Ambitious prompts (CRM, full dashboard, multi-view app) → 400-600 lines is fine. Never pad with unnecessary comments or whitespace. Every line should add functionality or UI.
+8. No line limit — write as much code as needed to fully implement every feature the prompt asks for. Don't pad with comments or whitespace, but never cut features short.
 
 ## CODE QUALITY RULES
 
