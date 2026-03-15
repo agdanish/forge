@@ -103,7 +103,9 @@ export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [timeRange, setTimeRange] = useState('30d');
   const [selectedRecord, setSelectedRecord] = useState<DataRecord | null>(null);
-  const [data, setData] = useState(INITIAL_DATA);
+  const [data, setData] = useState(() => {
+    try { const s = localStorage.getItem('${spec.appName.replace(/[^a-zA-Z0-9]/g, '_')}_data'); return s ? JSON.parse(s) : INITIAL_DATA; } catch { return INITIAL_DATA; }
+  });
   const [toast, setToast] = useState<{ message: string; undoItem?: DataRecord } | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [newName, setNewName] = useState('');
@@ -115,6 +117,9 @@ export default function App() {
 
   // Loading skeleton on mount
   useEffect(() => { const t = setTimeout(() => setLoading(false), 400); return () => clearTimeout(t); }, []);
+
+  // Persist data to localStorage
+  useEffect(() => { try { localStorage.setItem('${spec.appName.replace(/[^a-zA-Z0-9]/g, '_')}_data', JSON.stringify(data)); } catch {} }, [data]);
 
   const showToast = (msg: string, undoItem?: DataRecord) => {
     if (toastTimer.current) clearTimeout(toastTimer.current);

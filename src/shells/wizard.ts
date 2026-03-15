@@ -30,12 +30,36 @@ export function renderWizardShell(spec: AppSpec): string {
 
   const kpiJSON = JSON.stringify(spec.kpis);
 
-  return `import { useState, useMemo } from 'react';
+  return `import { useState, useMemo, useEffect } from 'react';
 import {
   ChevronRight, ChevronLeft, Check, RotateCcw, Sparkles,
   ArrowRight, CheckCircle2, Circle, AlertCircle, Star,
   Zap, Shield, Globe, BarChart3, TrendingUp
 } from 'lucide-react';
+
+// ── Animated Counter Hook ──
+function useCountUp(target: number, duration = 1200) {
+  const [val, setVal] = useState(0);
+  useEffect(() => {
+    const t0 = performance.now();
+    const tick = (now: number) => {
+      const p = Math.min((now - t0) / duration, 1);
+      const ease = 1 - Math.pow(1 - p, 3);
+      setVal(Math.round(ease * target));
+      if (p < 1) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  }, [target, duration]);
+  return val;
+}
+
+function extractNum(s: string): number { return parseFloat(s.replace(/[^0-9.]/g, '')) || 0; }
+function AnimatedKpi({ kpi }: { kpi: KpiCard }) {
+  const animated = useCountUp(extractNum(kpi.value));
+  const prefix = kpi.value.includes('$') ? '$' : '';
+  const suffix = kpi.value.includes('%') ? '%' : kpi.value.includes('k') || kpi.value.includes('K') ? 'K' : kpi.value.includes('+') ? '+' : '';
+  return <span>{prefix}{animated}{suffix}</span>;
+}
 
 interface KpiCard { label: string; value: string; trend: string; trendUp: boolean; }
 
@@ -284,7 +308,7 @@ export default function App() {
                 {KPIS.map((kpi, i) => (
                   <div key={i} className="p-3 rounded-xl ${isDark ? 'bg-gray-800/50' : 'bg-gray-50'} animate-slide-up" style={{ animationDelay: \`\${i * 100}ms\` }}>
                     <p className="${t.textMuted} text-xs">{kpi.label}</p>
-                    <p className="font-bold text-lg mt-1">{kpi.value}</p>
+                    <p className="font-bold text-lg mt-1 animate-count"><AnimatedKpi kpi={kpi} /></p>
                     <p className={\`text-xs mt-0.5 \${kpi.trendUp ? '${isDark ? 'text-emerald-400' : 'text-emerald-600'}' : 'text-red-400'}\`}>{kpi.trend}</p>
                   </div>
                 ))}

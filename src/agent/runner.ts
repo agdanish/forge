@@ -397,6 +397,22 @@ useEffect(() => { setTimeout(() => setLoading(false), 400) }, [])
 Always show "Showing X of Y items" above data tables/lists. Example:
 \`<p className="text-gray-500 text-sm mb-3">Showing <span className="text-white font-medium">{filtered.length}</span> of <span className="text-white font-medium">{data.length}</span> items</p>\`
 
+### LocalStorage persistence (MUST HAVE — proves real app, not a toy):
+\`\`\`tsx
+const [items, setItems] = useState(() => {
+  try { const s = localStorage.getItem('app_data'); return s ? JSON.parse(s) : INITIAL_DATA; } catch { return INITIAL_DATA; }
+});
+useEffect(() => { try { localStorage.setItem('app_data', JSON.stringify(items)); } catch {} }, [items]);
+\`\`\`
+
+### Dark / Light mode toggle (impressive design signal):
+Add a Sun/Moon toggle button in the header. Store preference in useState + localStorage.
+\`\`\`tsx
+const [dark, setDark] = useState(() => localStorage.getItem('theme') !== 'light');
+useEffect(() => { document.documentElement.classList.toggle('dark', dark); localStorage.setItem('theme', dark ? 'dark' : 'light'); }, [dark]);
+// Button: <button onClick={() => setDark(!dark)}>{dark ? <Sun /> : <Moon />}</button>
+\`\`\`
+
 ### NEVER do these (instant score penalty):
 - ❌ Alert() popups for anything
 - ❌ console.log() for user-visible actions

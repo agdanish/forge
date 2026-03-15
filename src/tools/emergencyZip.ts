@@ -248,7 +248,9 @@ const CATEGORIES = ${seedData.categories}
 // ── Main App ─────────────────────────────────────────────────────────────────
 
 export default function App() {
-  const [items, setItems] = useState<Item[]>(INITIAL_ITEMS)
+  const [items, setItems] = useState<Item[]>(() => {
+    try { const s = localStorage.getItem('emergency_app_data'); return s ? JSON.parse(s) : INITIAL_ITEMS; } catch { return INITIAL_ITEMS; }
+  })
   const [search, setSearch] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('All')
   const [selectedItem, setSelectedItem] = useState<Item | null>(null)
@@ -270,6 +272,7 @@ export default function App() {
   const toastTimerRef = useRef<ReturnType<typeof setTimeout>>()
 
   useEffect(() => { const t = setTimeout(() => setLoading(false), 400); return () => clearTimeout(t) }, [])
+  useEffect(() => { try { localStorage.setItem('emergency_app_data', JSON.stringify(items)); } catch {} }, [items])
 
   const showToast = (msg: string, undoItem?: Item) => {
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current)

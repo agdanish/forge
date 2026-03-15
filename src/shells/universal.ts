@@ -99,7 +99,9 @@ function exportCSV(rows: ${spec.primaryEntity}[]) {
 }
 
 export default function App() {
-  const [items, setItems] = useState<${spec.primaryEntity}[]>(INITIAL_DATA);
+  const [items, setItems] = useState<${spec.primaryEntity}[]>(() => {
+    try { const s = localStorage.getItem('${spec.appName.replace(/[^a-zA-Z0-9]/g, '_')}_data'); return s ? JSON.parse(s) : INITIAL_DATA; } catch { return INITIAL_DATA; }
+  });
   const [view, setView] = useState<ViewMode>(VIEWS[0]);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<Status | 'all'>('all');
@@ -118,6 +120,9 @@ export default function App() {
 
   // ── Loading Skeleton ──
   useEffect(() => { const t = setTimeout(() => setLoading(false), 400); return () => clearTimeout(t); }, []);
+
+  // ── Persist to localStorage ──
+  useEffect(() => { try { localStorage.setItem('${spec.appName.replace(/[^a-zA-Z0-9]/g, '_')}_data', JSON.stringify(items)); } catch {} }, [items]);
 
   // ── Keyboard Shortcuts ──
   useEffect(() => {

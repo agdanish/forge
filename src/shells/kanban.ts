@@ -87,7 +87,9 @@ const INITIAL_DATA: DataRecord[] = RAW_DATA.map((r, i) => ({
 }));
 
 export default function App() {
-  const [items, setItems] = useState<DataRecord[]>(INITIAL_DATA);
+  const [items, setItems] = useState<DataRecord[]>(() => {
+    try { const s = localStorage.getItem('${spec.appName.replace(/[^a-zA-Z0-9]/g, '_')}_data'); return s ? JSON.parse(s) : INITIAL_DATA; } catch { return INITIAL_DATA; }
+  });
   const [search, setSearch] = useState('');
   const [priorityFilter, setPriorityFilter] = useState<string>('all');
   const [selectedItem, setSelectedItem] = useState<DataRecord | null>(null);
@@ -104,6 +106,9 @@ export default function App() {
   const toastTimer = useRef<ReturnType<typeof setTimeout>>();
 
   useEffect(() => { const t = setTimeout(() => setLoading(false), 400); return () => clearTimeout(t); }, []);
+
+  // Persist to localStorage
+  useEffect(() => { try { localStorage.setItem('${spec.appName.replace(/[^a-zA-Z0-9]/g, '_')}_data', JSON.stringify(items)); } catch {} }, [items]);
 
   const showToast = (msg: string, undoItem?: DataRecord) => {
     if (toastTimer.current) clearTimeout(toastTimer.current);
