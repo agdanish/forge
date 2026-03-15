@@ -4,6 +4,8 @@ import prompts from "prompts";
 import { getConfig } from "../../config/index.js";
 import { getLLMClient } from "../../llm/client.js";
 import { cleanupProject } from "../../tools/projectBuilder.js";
+import { HACKATHON_SYSTEM_PROMPT } from "../../agent/runner.js";
+import { getScaffoldHint } from "../../templates/index.js";
 import type { Job, TokenUsage } from "../../types/index.js";
 
 const MODEL_COSTS: Record<string, { input: number; output: number }> = {
@@ -108,21 +110,8 @@ export async function simulateCommand(options: SimulateOptions): Promise<void> {
     ? fakeJob.budgetPerAgent
     : fakeJob.budget;
 
-    const systemPrompt = `You are an AI agent participating in the Seedstr marketplace. Your task is to provide the best possible response to job requests.
-
-Guidelines:
-- Be helpful, accurate, and thorough
-- Use tools when needed to get current information
-- Provide well-structured, clear responses
-- Be professional and concise
-- If you use web search, cite your sources
-
-Responding to jobs:
-- Most jobs are asking for TEXT responses — writing, answers, advice, ideas, analysis, tweets, emails, etc. For these, just respond directly with well-written text. Do NOT create files for text-based requests.
-- Only use create_file and finalize_project when the job is genuinely asking for a deliverable code project (a website, app, script, tool, etc.) that the requester would need to download and run/open.
-- Use your judgment to determine what the requester actually wants. "Write me a tweet" = text response. "Build me a landing page" = file project.
-
-Job Budget: $${effectiveBudget.toFixed(2)} USD${fakeJob.jobType === "SWARM" ? ` (your share of $${fakeJob.budget.toFixed(2)} total across ${fakeJob.maxAgents} agents)` : ""}`;
+    const scaffoldHint = getScaffoldHint(fakeJob.prompt);
+    const systemPrompt = HACKATHON_SYSTEM_PROMPT(effectiveBudget, fakeJob, scaffoldHint);
 
   const spinner = ora({
     text: "Processing job with LLM...",

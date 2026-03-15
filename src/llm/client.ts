@@ -223,12 +223,12 @@ export class LLMClient {
 
       // Project builder tool - creates files that will be packaged into a zip
       tools.create_file = tool({
-        description: `Create a file for a deliverable code project (website, app, script, tool). Only use this when the job is asking for an actual downloadable project — NOT for text-based requests like writing tweets, emails, essays, or answers. Call multiple times for multi-file projects, then use finalize_project to package them.`,
+        description: `Create a file for the project. IMPORTANT: 9 boilerplate files already exist (package.json, vite.config.ts, tailwind.config.js, postcss.config.js, tsconfig.json, index.html, src/main.tsx, src/index.css, README.md). You only need to create src/App.tsx — that's the ONLY file you should create. Then call finalize_project immediately. 2 tool calls total.`,
         parameters: z.object({
           path: z
             .string()
             .describe(
-              "The file path relative to the project root (e.g., 'index.html', 'src/App.tsx', 'styles/main.css')"
+              "The file path — should be 'src/App.tsx' (boilerplate files already exist, do NOT recreate them)"
             ),
           content: z
             .string()
@@ -237,16 +237,58 @@ export class LLMClient {
         execute: async ({ path, content }) => {
           logger.tool("create_file", "start", `Creating: ${path}`);
           try {
+            // Block boilerplate files that already exist
+            const BOILERPLATE_FILES = [
+              'package.json', 'vite.config.ts', 'tailwind.config.js',
+              'postcss.config.js', 'tsconfig.json', 'index.html',
+              'src/main.tsx', 'src/index.css', 'README.md',
+            ];
+            if (BOILERPLATE_FILES.includes(path)) {
+              logger.tool("create_file", "error", `${path} already exists in boilerplate — skipped`);
+              return {
+                success: false,
+                error: `${path} already exists as a pre-created boilerplate file. Do NOT recreate it. Only create src/App.tsx.`,
+                path,
+              };
+            }
+
+            // Quality gate for App.tsx — enforce Tailwind/lucide/CRUD pattern
+            if (path === 'src/App.tsx') {
+              const warnings: string[] = [];
+              const classNameCount = (content.match(/className/g) || []).length;
+              const lucideImport = content.includes('lucide-react');
+              const canvasUsage = /useRef.*canvas|<canvas|\.getContext\(/i.test(content);
+              const inlineStyleCount = (content.match(/style=\{\{/g) || []).length;
+              const useStateCount = (content.match(/useState/g) || []).length;
+              const handlerCount = (content.match(/onClick|onChange|onSubmit|onKeyDown/g) || []).length;
+
+              if (canvasUsage) warnings.push('CRITICAL: Canvas detected — remove <canvas> and use Tailwind divs/grids instead. Canvas scores ZERO on design.');
+              if (!lucideImport) warnings.push('CRITICAL: No lucide-react imports — add: import { Search, Plus, Edit, Trash2, Settings, Home, Menu, X, Check, Filter } from "lucide-react"');
+              if (classNameCount < 25) warnings.push(`CRITICAL: Only ${classNameCount} className attrs (need ≥30) — every div/button/span needs Tailwind classes like bg-gray-900, text-white, p-4, rounded-xl, flex, etc.`);
+              if (inlineStyleCount > 3) warnings.push(`WARNING: ${inlineStyleCount} inline styles detected — replace with Tailwind className equivalents.`);
+              if (useStateCount < 4) warnings.push(`WARNING: Only ${useStateCount} useState (need ≥4) — add search, filter, modal, selectedItem states.`);
+              if (handlerCount < 5) warnings.push(`WARNING: Only ${handlerCount} event handlers (need ≥5) — add onClick, onChange, onSubmit handlers.`);
+
+              if (warnings.some(w => w.startsWith('CRITICAL'))) {
+                logger.tool("create_file", "error", `App.tsx failed quality gate: ${warnings.join('; ')}`);
+                return {
+                  success: false,
+                  error: `App.tsx REJECTED — fix these issues and resubmit:\n${warnings.join('\n')}\n\nREWRITE App.tsx as a Tailwind CRUD app with sidebar navigation, data cards/table, search, filters, modals, KPI stats, and lucide-react icons. NO canvas, NO inline styles.`,
+                  path,
+                };
+              }
+            }
+
             // Initialize project builder if not exists
             if (!activeProjectBuilder) {
               activeProjectBuilder = new ProjectBuilder();
             }
-            
+
             activeProjectBuilder.addFile(path, content);
-            
+
             const files = activeProjectBuilder.getFiles();
             logger.tool("create_file", "success", `Created ${path}, total files: ${files.length}`);
-            
+
             return {
               success: true,
               path,
@@ -262,7 +304,7 @@ export class LLMClient {
       });
 
       tools.finalize_project = tool({
-        description: `Package all files created with create_file into a downloadable zip. Call this after creating all project files. Only use when you've built a real code project.`,
+        description: `Package the project into a downloadable zip. Call this immediately after creating src/App.tsx. The zip will include all 9 pre-existing boilerplate files plus your App.tsx. Do NOT create extra files before calling this.`,
         parameters: z.object({
           projectName: z
             .string()

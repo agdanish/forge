@@ -68,7 +68,7 @@ export function getConfig(): AgentConfig {
 
     // Platform
     seedstrApiUrl: process.env.SEEDSTR_API_URL || "https://www.seedstr.io/api/v1",
-    seedstrApiUrlV2: (process.env.SEEDSTR_API_URL || "https://www.seedstr.io/api/v2"),
+    seedstrApiUrlV2: process.env.SEEDSTR_API_URL_V2 || (process.env.SEEDSTR_API_URL ? process.env.SEEDSTR_API_URL.replace(/\/v1$/, '/v2') : "https://www.seedstr.io/api/v2"),
 
     // WebSocket (Pusher)
     useWebSocket: process.env.USE_WEBSOCKET !== "false", // enabled by default
