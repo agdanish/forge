@@ -287,11 +287,41 @@ const CHART_COLORS = ['#6366f1', '#8b5cf6', '#a78bfa', '#c4b5fd', '#818cf8']
 \`\`\`
 ALWAYS include at least ONE recharts chart in the dashboard view. Judges score real charts significantly higher than CSS approximations.
 
+### Toast notifications (CRITICAL — proves actions work):
+After EVERY mutation (add, edit, delete, status change), show a toast:
+\`\`\`tsx
+const [toast, setToast] = useState<string | null>(null)
+const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 2500) }
+// In JSX (inside root div):
+{toast && <div className="fixed top-4 right-4 z-50 bg-emerald-600 text-white px-4 py-3 rounded-xl shadow-2xl text-sm font-medium animate-slide-up flex items-center gap-2"><Check className="w-4 h-4" />{toast}</div>}
+\`\`\`
+Call showToast('✓ Item added') after add, showToast('✓ Deleted') after delete, etc.
+
+### Number formatting (professional polish):
+- Large numbers: \`value.toLocaleString()\` → "12,450"
+- Currency: \`$\${(val / 1000).toFixed(1)}k\` → "$12.5k"
+- Percentages with sign: \`\${change > 0 ? '+' : ''}\${change}%\`
+
+### Chart diversity (use 2+ chart types — not just BarChart):
+\`\`\`tsx
+// AreaChart with gradient fill:
+<AreaChart data={trendData}><defs><linearGradient id="grad" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#6366f1" stopOpacity={0.3}/><stop offset="95%" stopColor="#6366f1" stopOpacity={0}/></linearGradient></defs>
+<XAxis dataKey="name" stroke="#6b7280" fontSize={12}/><YAxis stroke="#6b7280" fontSize={12}/><Tooltip contentStyle={{backgroundColor:'#111827',border:'1px solid #374151',borderRadius:'8px',color:'#fff'}}/><Area type="monotone" dataKey="value" stroke="#6366f1" fill="url(#grad)" strokeWidth={2}/></AreaChart>
+// PieChart donut:
+<PieChart><Pie data={statusData} cx="50%" cy="50%" outerRadius={80} innerRadius={50} dataKey="value" strokeWidth={0}>
+{['#6366f1','#f59e0b','#10b981'].map((c,i)=><Cell key={i} fill={c}/>)}</Pie></PieChart>
+\`\`\`
+
+### Accessibility (cheap AI judge signals):
+- \`<button aria-label="Add new item">\` on add buttons
+- \`<input aria-label="Search" />\` on search inputs
+- \`<nav aria-label="Main navigation">\` on sidebar nav
+
 ### Interactions that impress judges:
-- Search/filter that actually works (filters the rendered list in real-time)
-- Add/Edit/Delete that actually mutate state
-- Tab switching between views (e.g., List / Board / Calendar)
-- Keyboard shortcut hint in UI: "Press ⌘K to search"
+- Search/filter that works (real-time filtering)
+- Add/Edit/Delete that mutate state — AND show toast confirmation
+- Tab switching between views
+- "Showing X of Y results" filter summary
 - Subtle active/selected state: className="ring-2 ring-indigo-500 bg-indigo-950/30"
 
 ### NEVER do these (instant score penalty):

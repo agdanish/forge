@@ -192,8 +192,9 @@ function generateSeedData(domain: string, prompt: string): { items: string; cate
 
 function generateUniversalApp(appName: string, domain: string, prompt: string): string {
   const seedData = generateSeedData(domain, prompt);
-  return `import { useState } from 'react'
+  return `import { useState, useEffect, useRef } from 'react'
 import { Search, Plus, X, Edit, Trash2, BarChart2, Users, Settings, Bell, Check, AlertCircle, Home, Menu, ChevronRight, TrendingUp, TrendingDown, Filter } from 'lucide-react'
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, AreaChart, Area, PieChart, Pie, Cell } from 'recharts'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -233,6 +234,9 @@ export default function App() {
   const [formCategory, setFormCategory] = useState('Strategy')
   const [formPriority, setFormPriority] = useState<'high' | 'medium' | 'low'>('medium')
   const [formValue, setFormValue] = useState('')
+  const [toast, setToast] = useState<string | null>(null)
+
+  const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 2500) }
 
   const filtered = items.filter(item => {
     const matchesSearch = item.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -245,6 +249,7 @@ export default function App() {
   const stats = {
     total: items.length,
     active: items.filter(i => i.status === 'active').length,
+    pending: items.filter(i => i.status === 'pending').length,
     completed: items.filter(i => i.status === 'completed').length,
     totalValue: items.reduce((sum, i) => sum + i.value, 0),
     highPriority: items.filter(i => i.priority === 'high').length,
@@ -265,6 +270,7 @@ export default function App() {
     }
     setItems([newItem, ...items])
     resetForm()
+    showToast('✓ Item added successfully')
   }
 
   const handleEdit = () => {
@@ -274,15 +280,18 @@ export default function App() {
       priority: formPriority, value: parseInt(formValue) || 0,
     } : i))
     resetForm()
+    showToast('✓ Item updated')
   }
 
   const handleDelete = (id: number) => {
     setItems(items.filter(i => i.id !== id))
     if (selectedItem?.id === id) setSelectedItem(null)
+    showToast('✓ Item deleted')
   }
 
   const handleStatusChange = (id: number, status: Item['status']) => {
     setItems(items.map(i => i.id === id ? { ...i, status } : i))
+    showToast(\`Status changed to \${status}\`)
   }
 
   const startEdit = (item: Item) => {
@@ -310,6 +319,12 @@ export default function App() {
 
   return (
     <div className="flex h-screen bg-gray-950 text-white overflow-hidden">
+      {/* Toast Notification */}
+      {toast && (
+        <div className="fixed top-4 right-4 z-50 bg-emerald-600 text-white px-4 py-3 rounded-xl shadow-2xl text-sm font-medium animate-slide-up flex items-center gap-2">
+          <Check className="w-4 h-4" />{toast}
+        </div>
+      )}
       {/* Sidebar */}
       {sidebarOpen && (
         <aside className="hidden sm:flex w-64 bg-gray-900 border-r border-gray-800 flex-col">
@@ -332,7 +347,7 @@ export default function App() {
           <div className="p-4 border-t border-gray-800">
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center text-sm font-bold">F</div>
-              <div><p className="text-sm font-medium">AeroFyta</p><p className="text-xs text-gray-500">Online</p></div>
+              <div><p className="text-sm font-medium">${appName.split(' ')[0]}</p><p className="text-xs text-gray-500">Online</p></div>
             </div>
           </div>
         </aside>
@@ -399,6 +414,47 @@ export default function App() {
                     </div>
                   </div>
                 ))}
+              </div>
+
+              {/* Charts Row */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-8">
+                <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6">
+                  <h3 className="text-sm font-medium text-gray-400 uppercase tracking-wider mb-4">Activity Trend</h3>
+                  <ResponsiveContainer width="100%" height={220}>
+                    <AreaChart data={[
+                      { name: 'Jan', value: 12 }, { name: 'Feb', value: 19 }, { name: 'Mar', value: 28 },
+                      { name: 'Apr', value: 35 }, { name: 'May', value: 42 }, { name: 'Jun', value: 56 },
+                    ]}>
+                      <defs><linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#6366f1" stopOpacity={0.3}/><stop offset="95%" stopColor="#6366f1" stopOpacity={0}/></linearGradient></defs>
+                      <XAxis dataKey="name" stroke="#6b7280" fontSize={12} />
+                      <YAxis stroke="#6b7280" fontSize={12} />
+                      <Tooltip contentStyle={{ backgroundColor: '#111827', border: '1px solid #374151', borderRadius: '8px', color: '#fff' }} />
+                      <Area type="monotone" dataKey="value" stroke="#6366f1" fill="url(#areaGrad)" strokeWidth={2} />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6">
+                  <h3 className="text-sm font-medium text-gray-400 uppercase tracking-wider mb-4">Status Breakdown</h3>
+                  <div className="flex items-center justify-center">
+                    <ResponsiveContainer width="100%" height={220}>
+                      <PieChart>
+                        <Pie data={[
+                          { name: 'Active', value: stats.active },
+                          { name: 'Pending', value: stats.pending },
+                          { name: 'Completed', value: stats.completed },
+                        ]} cx="50%" cy="50%" outerRadius={80} innerRadius={50} dataKey="value" strokeWidth={0}>
+                          {['#6366f1', '#f59e0b', '#10b981'].map((color, i) => <Cell key={i} fill={color} />)}
+                        </Pie>
+                        <Tooltip contentStyle={{ backgroundColor: '#111827', border: '1px solid #374151', borderRadius: '8px', color: '#fff' }} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div className="flex justify-center gap-4 mt-2">
+                    {[{ label: 'Active', color: 'bg-indigo-500' }, { label: 'Pending', color: 'bg-yellow-500' }, { label: 'Completed', color: 'bg-emerald-500' }].map(l => (
+                      <div key={l.label} className="flex items-center gap-1.5 text-xs text-gray-400"><div className={\`w-2.5 h-2.5 rounded-full \${l.color}\`} />{l.label}</div>
+                    ))}
+                  </div>
+                </div>
               </div>
 
               {/* Item List */}

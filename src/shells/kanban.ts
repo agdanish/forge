@@ -34,7 +34,7 @@ import {
   Search, Filter, ChevronRight, ChevronLeft, X, Eye, Clock,
   AlertCircle, CheckCircle2, Archive, User, Calendar, Tag,
   MoreVertical, Plus, ArrowRight, LayoutGrid, List, TrendingUp, TrendingDown,
-  GripVertical, Menu
+  GripVertical, Menu, Check, Trash2
 } from 'lucide-react';
 
 interface KpiCard { label: string; value: string; trend: string; trendUp: boolean; }
@@ -65,6 +65,27 @@ export default function App() {
   const [viewMode, setViewMode] = useState<'board' | 'list'>('board');
   const [menuOpen, setMenuOpen] = useState<number | null>(null);
   const [mobileMenu, setMobileMenu] = useState(false);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [newDesc, setNewDesc] = useState('');
+  const [toast, setToast] = useState<string | null>(null);
+
+  const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 2500); };
+
+  const handleAddItem = () => {
+    if (!newName.trim()) return;
+    const newItem: DataRecord = { id: Date.now(), name: newName, description: newDesc || 'New item', category: CATEGORIES[0] || 'General', status: 'active', priority: 'medium', value: Math.floor(Math.random() * 5000) + 500, assignee: 'Unassigned', date: new Date().toISOString().split('T')[0], stage: STAGES[0] };
+    setItems(prev => [newItem, ...prev]);
+    setNewName(''); setNewDesc(''); setShowAddForm(false);
+    showToast('✓ Item added to ' + STAGES[0]);
+  };
+
+  const handleDelete = (id: number) => {
+    setItems(prev => prev.filter(r => r.id !== id));
+    if (selectedItem?.id === id) setSelectedItem(null);
+    setMenuOpen(null);
+    showToast('✓ Item removed');
+  };
 
   const filtered = useMemo(() => {
     return items.filter(item => {
@@ -111,6 +132,9 @@ export default function App() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <button onClick={() => setShowAddForm(true)} className="${t.primary} text-white px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-1.5 hover:opacity-90 transition-all" aria-label="Add new item">
+              <Plus className="w-4 h-4" /> Add
+            </button>
             <button onClick={() => setViewMode('board')} className={\`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors \${viewMode === 'board' ? '${t.primary} text-white' : '${t.textMuted} hover:${t.text}'}\`}>
               <LayoutGrid className="w-4 h-4" />
             </button>
@@ -355,6 +379,27 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {/* Add Item Modal */}
+      {showAddForm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => setShowAddForm(false)}>
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+          <div className="${t.card} border ${t.cardBorder} rounded-2xl shadow-2xl max-w-md w-full p-6 relative z-10" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold">Add New Item</h2>
+              <button onClick={() => setShowAddForm(false)} className="${t.textMuted} hover:${t.text} p-1"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="space-y-3">
+              <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Name" className="w-full ${isDark ? 'bg-gray-800 border-gray-700 text-white placeholder-gray-500' : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400'} border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+              <input value={newDesc} onChange={e => setNewDesc(e.target.value)} placeholder="Description" className="w-full ${isDark ? 'bg-gray-800 border-gray-700 text-white placeholder-gray-500' : 'bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400'} border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+              <button onClick={handleAddItem} className="w-full ${t.primary} text-white px-4 py-2 rounded-lg font-medium hover:opacity-90 transition-all flex items-center justify-center gap-2"><Plus className="w-4 h-4" /> Add Item</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Toast */}
+      {toast && <div className="fixed top-4 right-4 z-50 ${isDark ? 'bg-emerald-600' : 'bg-emerald-500'} text-white px-4 py-3 rounded-xl shadow-2xl text-sm font-medium animate-slide-up flex items-center gap-2"><Check className="w-4 h-4" />{toast}</div>}
 
       {/* Click-outside to close menu */}
       {menuOpen && <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(null)} />}
